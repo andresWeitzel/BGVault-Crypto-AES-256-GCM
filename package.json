@@ -1,0 +1,20 @@
+{
+  "name": "bgcrypt",
+  "version": "1.0.0",
+  "description": "Servidor Express sencillo",
+  "main": "src/server.js",
+  "scripts": {
+    "server": "node src/server.js",
+    "client:post": "bash scripts/client/client.sh post",
+    "client:get": "bash scripts/client/client.sh get",
+    "setup-env": "node src/setup/setup-env.js",
+    "decrypt-env": "node src/setup/decrypt-env.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
+
