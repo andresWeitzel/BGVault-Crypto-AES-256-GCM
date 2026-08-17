@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="./doc/assets/bgvault-background.png" alt="BGVault — Crypto AES-256-GCM" width="880" />
+</div>
+
 <div align="right">
   <img width="26" height="26" src="./doc/assets/icons/backend/javascript-typescript/svg/nodejs-color.svg" alt="Node.js" />
   &nbsp;
@@ -285,7 +289,8 @@ bgvault/
 │   └── client/
 │       └── client.sh                # Bash client (post / get)
 ├── doc/
-│   └── assets/                      # README icons, flags, Spanish translation
+│   └── assets/                      # README banner, icons, flags, Spanish translation
+│       ├── bgvault-background.png   # Header image
 │       ├── icons/
 │       └── translation/
 │           └── README.es.md
