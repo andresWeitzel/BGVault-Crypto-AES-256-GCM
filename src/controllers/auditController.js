@@ -1,4 +1,5 @@
 const auditStore = require('../store/auditStore');
+const { sendOk } = require('../http/respond');
 
 function listAudit(req, res) {
   const { action, credentialId, limit, offset } = req.query;
@@ -10,10 +11,9 @@ function listAudit(req, res) {
     offset,
   });
 
-  return res.json({
+  return sendOk(res, 200, {
     ...result,
     count: result.events.length,
-    timestamp: new Date().toISOString(),
   });
 }
 

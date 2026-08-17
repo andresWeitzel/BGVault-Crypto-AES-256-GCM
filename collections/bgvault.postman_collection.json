@@ -8,35 +8,87 @@
   "auth": {
     "type": "bearer",
     "bearer": [
-      { "key": "token", "value": "{{accessToken}}" }
+      {
+        "key": "token",
+        "value": "{{accessToken}}"
+      }
     ]
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:3000" },
-    { "key": "accessToken", "value": "" },
-    { "key": "otherAccessToken", "value": "" },
-    { "key": "authEmail", "value": "demo@bgvault.local" },
-    { "key": "authPassword", "value": "bgvault-dev-password" },
-    { "key": "password", "value": "miContraseña123!" },
-    { "key": "username", "value": "usuario@example.com" },
-    { "key": "wrongPassword", "value": "clave-incorrecta" },
-    { "key": "rotatedPassword", "value": "nuevaContraseña456!" },
-    { "key": "generatedPassword", "value": "" },
-    { "key": "credentialIdPassword", "value": "" },
-    { "key": "credentialIdApiKey", "value": "" },
-    { "key": "credentialIdToken", "value": "" },
-    { "key": "credentialIdNote", "value": "" },
-    { "key": "credentialIdOnetime", "value": "" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "otherAccessToken",
+      "value": ""
+    },
+    {
+      "key": "authEmail",
+      "value": "demo@bgvault.local"
+    },
+    {
+      "key": "authPassword",
+      "value": "bgvault-dev-password"
+    },
+    {
+      "key": "password",
+      "value": "miContraseña123!"
+    },
+    {
+      "key": "username",
+      "value": "usuario@example.com"
+    },
+    {
+      "key": "wrongPassword",
+      "value": "clave-incorrecta"
+    },
+    {
+      "key": "rotatedPassword",
+      "value": "nuevaContraseña456!"
+    },
+    {
+      "key": "generatedPassword",
+      "value": ""
+    },
+    {
+      "key": "credentialIdPassword",
+      "value": ""
+    },
+    {
+      "key": "credentialIdApiKey",
+      "value": ""
+    },
+    {
+      "key": "credentialIdToken",
+      "value": ""
+    },
+    {
+      "key": "credentialIdNote",
+      "value": ""
+    },
+    {
+      "key": "credentialIdOnetime",
+      "value": ""
+    }
   ],
   "item": [
     {
       "name": "Health",
-      "auth": { "type": "noauth" },
+      "auth": {
+        "type": "noauth"
+      },
       "item": [
         {
           "name": "Health check",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/health"
@@ -53,6 +105,8 @@
                   "    pm.expect(json.status).to.eql('OK');",
                   "    pm.expect(json.auth).to.eql('jwt');",
                   "    pm.expect(json.crypto).to.eql('envelope');",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(pm.response.headers.get('X-Request-Id')).to.eql(json.requestId);",
                   "    pm.expect(json).to.have.property('timestamp');",
                   "});"
                 ]
@@ -68,7 +122,9 @@
         {
           "name": "401 — sin token",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/credentials"
@@ -81,7 +137,9 @@
                 "exec": [
                   "pm.test('Status 401', function () {",
                   "    pm.response.to.have.status(401);",
-                  "    pm.expect(pm.response.json().error).to.eql('No autorizado');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('UNAUTHORIZED');",
+                  "    pm.expect(err.message).to.eql('No autorizado');",
                   "});"
                 ]
               }
@@ -91,10 +149,15 @@
         {
           "name": "401 — token inválido",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer token-falso" }
+              {
+                "key": "Authorization",
+                "value": "Bearer token-falso"
+              }
             ],
             "url": "{{baseUrl}}/api/credentials"
           },
@@ -106,7 +169,9 @@
                 "exec": [
                   "pm.test('Status 401', function () {",
                   "    pm.response.to.have.status(401);",
-                  "    pm.expect(pm.response.json().error).to.eql('No autorizado');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('UNAUTHORIZED');",
+                  "    pm.expect(err.message).to.eql('No autorizado');",
                   "});"
                 ]
               }
@@ -116,13 +181,24 @@
         {
           "name": "Registrar",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{authEmail}}\",\n  \"password\": \"{{authPassword}}\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/auth/register"
           },
@@ -147,13 +223,24 @@
         {
           "name": "Login",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{authEmail}}\",\n  \"password\": \"{{authPassword}}\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/auth/login"
           },
@@ -207,13 +294,24 @@
         {
           "name": "Error 400 — password corto",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"corto@bgvault.local\",\n  \"password\": \"123\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/auth/register"
           },
@@ -225,7 +323,9 @@
                 "exec": [
                   "pm.test('Status 400', function () {",
                   "    pm.response.to.have.status(400);",
-                  "    pm.expect(pm.response.json().error).to.include('password debe tener al menos');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('VALIDATION');",
+                  "    pm.expect(err.message).to.include('password debe tener al menos');",
                   "});"
                 ]
               }
@@ -235,13 +335,24 @@
         {
           "name": "401 — login inválido",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{authEmail}}\",\n  \"password\": \"clave-incorrecta\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/auth/login"
           },
@@ -253,7 +364,9 @@
                 "exec": [
                   "pm.test('Credenciales inválidas', function () {",
                   "    pm.response.to.have.status(401);",
-                  "    pm.expect(pm.response.json().error).to.eql('Credenciales inválidas');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('INVALID_CREDENTIALS');",
+                  "    pm.expect(err.message).to.eql('Credenciales inválidas');",
                   "});"
                 ]
               }
@@ -269,11 +382,20 @@
           "name": "Generar password",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"kind\": \"password\",\n  \"length\": 24,\n  \"symbols\": true\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/generate"
           },
@@ -305,11 +427,20 @@
           "name": "Error 400 — kind inválido",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"kind\": \"note\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/generate"
           },
@@ -321,7 +452,9 @@
                 "exec": [
                   "pm.test('kind inválido', function () {",
                   "    pm.response.to.have.status(400);",
-                  "    pm.expect(pm.response.json().error).to.include('kind debe ser uno de');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('VALIDATION');",
+                  "    pm.expect(err.message).to.include('kind debe ser uno de');",
                   "});"
                 ]
               }
@@ -337,11 +470,20 @@
           "name": "Password",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"type\": \"password\",\n  \"name\": \"Gmail personal\",\n  \"service\": \"Gmail\",\n  \"tags\": [\"email\"],\n  \"payload\": {\n    \"password\": \"{{password}}\",\n    \"username\": \"{{username}}\"\n  }\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials"
           },
@@ -372,11 +514,20 @@
           "name": "API key",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"type\": \"api_key\",\n  \"name\": \"Stripe live\",\n  \"service\": \"Stripe\",\n  \"payload\": { \"key\": \"sk_live_demo_123\" }\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials"
           },
@@ -403,11 +554,20 @@
           "name": "Token",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"type\": \"token\",\n  \"name\": \"GitHub PAT\",\n  \"service\": \"GitHub\",\n  \"payload\": { \"token\": \"ghp_exampleToken\" }\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials"
           },
@@ -434,11 +594,20 @@
           "name": "Note",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"type\": \"note\",\n  \"name\": \"WiFi oficina\",\n  \"payload\": { \"text\": \"SSID: HQ / clave: secret\" }\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials"
           },
@@ -465,11 +634,20 @@
           "name": "Error 400 — falta name",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"type\": \"password\",\n  \"payload\": { \"password\": \"x\" }\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials"
           },
@@ -481,7 +659,9 @@
                 "exec": [
                   "pm.test('Status 400', function () {",
                   "    pm.response.to.have.status(400);",
-                  "    pm.expect(pm.response.json().error).to.eql('name es requerido');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('VALIDATION');",
+                  "    pm.expect(err.message).to.eql('name es requerido');",
                   "});"
                 ]
               }
@@ -492,11 +672,20 @@
           "name": "Error 400 — type inválido",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"type\": \"bitcoin\",\n  \"name\": \"no\",\n  \"payload\": { \"password\": \"x\" }\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials"
           },
@@ -508,7 +697,9 @@
                 "exec": [
                   "pm.test('Status 400 type', function () {",
                   "    pm.response.to.have.status(400);",
-                  "    pm.expect(pm.response.json().error).to.include('type debe ser uno de');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('VALIDATION');",
+                  "    pm.expect(err.message).to.include('type debe ser uno de');",
                   "});"
                 ]
               }
@@ -614,7 +805,9 @@
                 "exec": [
                   "pm.test('Status 404', function () {",
                   "    pm.response.to.have.status(404);",
-                  "    pm.expect(pm.response.json().error).to.eql('Credencial no encontrada');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('CREDENTIAL_NOT_FOUND');",
+                  "    pm.expect(err.message).to.eql('Credencial no encontrada');",
                   "});"
                 ]
               }
@@ -629,13 +822,24 @@
         {
           "name": "Registrar segundo usuario",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"other@bgvault.local\",\n  \"password\": \"other-password-1\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/auth/register"
           },
@@ -674,7 +878,12 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{otherAccessToken}}" }]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{otherAccessToken}}"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
@@ -688,7 +897,9 @@
                 "exec": [
                   "pm.test('No filtra existencia ajena', function () {",
                   "    pm.response.to.have.status(404);",
-                  "    pm.expect(pm.response.json().error).to.eql('Credencial no encontrada');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('CREDENTIAL_NOT_FOUND');",
+                  "    pm.expect(err.message).to.eql('Credencial no encontrada');",
                   "});"
                 ]
               }
@@ -755,11 +966,20 @@
           "name": "Crear one-time",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"type\": \"password\",\n  \"name\": \"OTP de un solo uso\",\n  \"maxReveals\": 1,\n  \"payload\": {\n    \"password\": \"once-only-secret\",\n    \"username\": \"{{username}}\"\n  }\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials"
           },
@@ -802,7 +1022,7 @@
                   "pm.test('Primer reveal', function () {",
                   "    pm.response.to.have.status(200);",
                   "    pm.expect(json.payload.password).to.eql('once-only-secret');",
-                  "    pm.expect(json.revealsRemaining).to.eql(0);",
+                  "    pm.expect(json.credential.revealsRemaining).to.eql(0);",
                   "});"
                 ]
               }
@@ -824,7 +1044,9 @@
                 "exec": [
                   "pm.test('Quemada', function () {",
                   "    pm.response.to.have.status(410);",
-                  "    pm.expect(pm.response.json().error).to.eql('Límite de revelaciones alcanzado');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('REVEAL_LIMIT');",
+                  "    pm.expect(err.message).to.eql('Límite de revelaciones alcanzado');",
                   "    pm.expect(pm.response.json()).to.not.have.property('payload');",
                   "});"
                 ]
@@ -860,11 +1082,20 @@
           "name": "Error 400 — expiresAt pasado",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"type\": \"note\",\n  \"name\": \"vencida\",\n  \"expiresAt\": \"2020-01-01T00:00:00.000Z\",\n  \"payload\": { \"text\": \"x\" }\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials"
           },
@@ -876,7 +1107,9 @@
                 "exec": [
                   "pm.test('TTL pasado', function () {",
                   "    pm.response.to.have.status(400);",
-                  "    pm.expect(pm.response.json().error).to.eql('expiresAt debe ser una fecha futura');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('VALIDATION');",
+                  "    pm.expect(err.message).to.eql('expiresAt debe ser una fecha futura');",
                   "});"
                 ]
               }
@@ -887,11 +1120,20 @@
           "name": "Error 400 — maxReveals 0",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"type\": \"note\",\n  \"name\": \"cero\",\n  \"maxReveals\": 0,\n  \"payload\": { \"text\": \"x\" }\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials"
           },
@@ -903,7 +1145,9 @@
                 "exec": [
                   "pm.test('maxReveals inválido', function () {",
                   "    pm.response.to.have.status(400);",
-                  "    pm.expect(pm.response.json().error).to.include('maxReveals debe ser un entero');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('VALIDATION');",
+                  "    pm.expect(err.message).to.include('maxReveals debe ser un entero');",
                   "});"
                 ]
               }
@@ -919,11 +1163,20 @@
           "name": "Password correcta",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"password\": \"{{password}}\",\n  \"username\": \"{{username}}\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/verify"
           },
@@ -948,11 +1201,20 @@
           "name": "Password incorrecta",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"password\": \"{{wrongPassword}}\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/verify"
           },
@@ -975,11 +1237,20 @@
           "name": "Error 400 — verify sobre api_key",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"password\": \"x\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials/{{credentialIdApiKey}}/verify"
           },
@@ -991,7 +1262,9 @@
                 "exec": [
                   "pm.test('Solo passwords', function () {",
                   "    pm.response.to.have.status(400);",
-                  "    pm.expect(pm.response.json().error).to.eql('verify solo aplica a credenciales de tipo password');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('VALIDATION');",
+                  "    pm.expect(err.message).to.eql('verify solo aplica a credenciales de tipo password');",
                   "});"
                 ]
               }
@@ -1007,11 +1280,20 @@
           "name": "Rotar password",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"payload\": {\n    \"password\": \"{{rotatedPassword}}\",\n    \"username\": \"{{username}}\"\n  }\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/rotate"
           },
@@ -1048,7 +1330,7 @@
                   "const json = pm.response.json();",
                   "pm.test('Historial v1 y v2', function () {",
                   "    pm.response.to.have.status(200);",
-                  "    pm.expect(json.currentVersion).to.eql(2);",
+                  "    pm.expect(json.credential.currentVersion).to.eql(2);",
                   "    pm.expect(json.versions).to.have.lengthOf(2);",
                   "    json.versions.forEach(function (item) {",
                   "        pm.expect(item).to.have.property('version');",
@@ -1078,7 +1360,7 @@
                   "const json = pm.response.json();",
                   "pm.test('Payload rotado', function () {",
                   "    pm.response.to.have.status(200);",
-                  "    pm.expect(json.version).to.eql(2);",
+                  "    pm.expect(json.credential.version).to.eql(2);",
                   "    pm.expect(json.payload.password).to.eql(pm.collectionVariables.get('rotatedPassword'));",
                   "});"
                 ]
@@ -1090,11 +1372,20 @@
           "name": "Revelar versión 1 (histórica)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"version\": 1\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/reveal"
           },
@@ -1107,7 +1398,7 @@
                   "const json = pm.response.json();",
                   "pm.test('Histórica intacta', function () {",
                   "    pm.response.to.have.status(200);",
-                  "    pm.expect(json.version).to.eql(1);",
+                  "    pm.expect(json.credential.version).to.eql(1);",
                   "    pm.expect(json.payload.password).to.eql(pm.collectionVariables.get('password'));",
                   "});"
                 ]
@@ -1119,11 +1410,20 @@
           "name": "Error 404 — versión inexistente",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"version\": 99\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/reveal"
           },
@@ -1135,7 +1435,9 @@
                 "exec": [
                   "pm.test('Versión no encontrada', function () {",
                   "    pm.response.to.have.status(404);",
-                  "    pm.expect(pm.response.json().error).to.eql('Versión no encontrada');",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('VERSION_NOT_FOUND');",
+                  "    pm.expect(err.message).to.eql('Versión no encontrada');",
                   "});"
                 ]
               }
