@@ -4,6 +4,7 @@ sqlite.open();
 
 const express = require('express');
 const authRoutes = require('./routes/authRoutes');
+const generateRoutes = require('./routes/generateRoutes');
 const credentialRoutes = require('./routes/credentialRoutes');
 const auditRoutes = require('./routes/auditRoutes');
 const requireAuth = require('./middleware/requireAuth');
@@ -25,11 +26,13 @@ app.get('/health', (req, res) => {
     status: 'OK',
     persistence: 'sqlite',
     auth: 'jwt',
+    crypto: 'envelope',
     timestamp: new Date().toISOString(),
   });
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/generate', requireAuth, generateRoutes);
 app.use('/api/credentials', requireAuth, credentialRoutes);
 app.use('/api/audit', requireAuth, auditRoutes);
 

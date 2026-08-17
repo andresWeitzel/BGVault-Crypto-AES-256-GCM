@@ -21,6 +21,7 @@
     { "key": "username", "value": "usuario@example.com" },
     { "key": "wrongPassword", "value": "clave-incorrecta" },
     { "key": "rotatedPassword", "value": "nuevaContraseña456!" },
+    { "key": "generatedPassword", "value": "" },
     { "key": "credentialIdPassword", "value": "" },
     { "key": "credentialIdApiKey", "value": "" },
     { "key": "credentialIdToken", "value": "" },
@@ -50,6 +51,7 @@
                   "    const json = pm.response.json();",
                   "    pm.expect(json.status).to.eql('OK');",
                   "    pm.expect(json.auth).to.eql('jwt');",
+                  "    pm.expect(json.crypto).to.eql('envelope');",
                   "    pm.expect(json).to.have.property('timestamp');",
                   "});"
                 ]
@@ -260,6 +262,74 @@
       ]
     },
     {
+      "name": "Generate",
+      "item": [
+        {
+          "name": "Generar password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"password\",\n  \"length\": 24,\n  \"symbols\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/generate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Password aleatoria', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.kind).to.eql('password');",
+                  "    pm.expect(json.length).to.eql(24);",
+                  "    pm.expect(json.value).to.have.lengthOf(24);",
+                  "    pm.expect(json.value).to.match(/[A-Z]/);",
+                  "    pm.expect(json.value).to.match(/[a-z]/);",
+                  "    pm.expect(json.value).to.match(/[0-9]/);",
+                  "});",
+                  "if (json.value) {",
+                  "    pm.collectionVariables.set('generatedPassword', json.value);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — kind inválido",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"note\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/generate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('kind inválido', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().error).to.include('kind debe ser uno de');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Create",
       "item": [
         {
@@ -287,6 +357,7 @@
                   "    pm.expect(json.credential).to.have.property('id');",
                   "    pm.expect(json.credential).to.not.have.property('payload');",
                   "    pm.expect(json.credential).to.not.have.property('ciphertext');",
+                  "    pm.expect(json.credential).to.not.have.property('wrappedDek');",
                   "});",
                   "if (json.credential && json.credential.id) {",
                   "    pm.collectionVariables.set('credentialIdPassword', json.credential.id);",
@@ -469,6 +540,7 @@
                   "        pm.expect(item).to.have.property('id');",
                   "        pm.expect(item).to.not.have.property('payload');",
                   "        pm.expect(item).to.not.have.property('ciphertext');",
+                  "        pm.expect(item).to.not.have.property('wrappedDek');",
                   "        pm.expect(item).to.not.have.property('password');",
                   "    });",
                   "});"

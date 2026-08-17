@@ -10,11 +10,13 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **Cuatro tipos**: `password`, `api_key`, `token` y `note`, cada uno con payload validado
 - ✅ **AES-256-GCM**: cifrado autenticado; el tag GCM detecta manipulación del ciphertext
 - ✅ **AAD ligado a la credencial**: Additional Authenticated Data `credential:<id>:<type>:<version>` — un blob no se puede reubicar en otro id, tipo o versión
-- ✅ **IV de 12 bytes (NIST)** y salt de 64 bytes únicos por cada cifrado
-- ✅ **PBKDF2**: 100.000 iteraciones con SHA-256 para derivar la clave AES-256
+- ✅ **Envelope encryption**: cada versión tiene una DEK aleatoria de 32 bytes; `ENCRYPTION_KEY` solo envuelve esa DEK (PBKDF2). Revelar una versión no deriva la clave maestra sobre el payload
+- ✅ **Generador CSPRNG**: `POST /api/generate` arma passwords, API keys y tokens con `crypto.randomInt`
+- ✅ **PBKDF2**: 100.000 iteraciones con SHA-256 al **envolver** la DEK (no en cada byte del payload)
+- ✅ **IV de 12 bytes (NIST)** en payload y en el wrap de la DEK
 - ✅ **Persistencia SQLite**: las credenciales y versiones sobreviven al reinicio (`node:sqlite`, sin ORM)
 - ✅ **Versionado y rotación**: cada cambio de payload crea una versión nueva; la anterior sigue revelable
-- ✅ **Auditoría**: create, get, reveal, verify, rotate, delete y versions quedan en `audit_events` (sin plaintext)
+- ✅ **Auditoría**: generate, create, get, reveal, verify, rotate, delete y versions quedan en `audit_events` (sin plaintext)
 - ✅ **IDs UUID**: se abandonó el `index` numérico; cada credencial tiene identidad estable
 - ✅ **Metadatos en claro, payload cifrado**: `name`, `service` y `tags` se pueden filtrar; la clave/contraseña no aparece en GET
 - ✅ **Autenticación JWT**: `POST /api/auth/register` y `/login` emiten un Bearer HS256 (HMAC nativo); el hash de la cuenta es **scrypt**, no bcrypt
@@ -25,9 +27,9 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **Módulo reutilizable**: `src/crypto/lib.js` se copia a otros proyectos Node sin dependencias extra
 - ✅ **Setup de entorno**: `npm run setup-env` genera o completa `.env`
 
-El almacén es un archivo SQLite (`data/bgvault.sqlite`). Las cuentas viven en la tabla `users`; las credenciales previas a esta fase quedan huérfanas (`user_id` nulo) y no aparecen en ningún JWT.
+El almacén es un archivo SQLite (`data/bgvault.sqlite`). Las cuentas viven en la tabla `users`. Versiones antiguas sin `wrapped_dek` se siguen revelando con el cifrado directo (legado).
 
-Envelope encryption / KMS y un generador de contraseñas son fases posteriores.
+TTL / reveal de un solo uso y rotación de `ENCRYPTION_KEY` (re-wrap de DEKs) quedan para más adelante.
 
 ## 🛠️ Tecnologías
 
@@ -128,7 +130,7 @@ Auth: JWT Bearer (POST /api/auth/register o /api/auth/login)
 
 `GET /health` es público. `POST /api/auth/register` y `POST /api/auth/login` también (emiten el token).
 
-Todas las rutas `/api/credentials*`, `/api/audit*` y `GET /api/auth/me` exigen:
+Todas las rutas `/api/credentials*`, `/api/audit*`, `POST /api/generate` y `GET /api/auth/me` exigen:
 
 ```
 Authorization: Bearer <accessToken>
@@ -162,6 +164,7 @@ Verifica que el proceso esté vivo. No requiere auth.
   "status": "OK",
   "persistence": "sqlite",
   "auth": "jwt",
+  "crypto": "envelope",
   "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
@@ -247,9 +250,58 @@ Mismo body que register. Respuesta idéntica salvo `message`: `"Sesión iniciada
 
 ---
 
-### 5. Crear credencial
+### 5. Generar secreto
 
-Cifra el `payload` con AES-256-GCM (AAD = `credential:<id>:<type>:<version>`) y guarda el registro como **versión 1**.
+Arma un valor aleatorio con `crypto.randomInt` (CSPRNG). **No lo guarda**: copialo al `payload` de create/rotate si querés persistirlo.
+
+**POST** `/api/generate`  
+**Auth:** Bearer JWT
+
+**Body:**
+```json
+{
+  "kind": "password",
+  "length": 24,
+  "uppercase": true,
+  "lowercase": true,
+  "digits": true,
+  "symbols": true,
+  "excludeAmbiguous": true
+}
+```
+
+| Campo | Default | Notas |
+|-------|---------|-------|
+| `kind` | `password` | `password` \| `api_key` \| `token` (`note` no aplica) |
+| `length` | 20 / 32 / 48 según kind | entero 12–128 |
+| `uppercase` `lowercase` `digits` | `true` | — |
+| `symbols` | `true` en password, `false` en api_key/token | `!@#$%^&*_-+=?` |
+| `excludeAmbiguous` | `true` | omite `I`, `O`, `l`, `0`, `1` |
+
+**Respuesta 200:**
+```json
+{
+  "kind": "password",
+  "length": 24,
+  "value": "k7#mP9qR2wX!",
+  "options": {
+    "uppercase": true,
+    "lowercase": true,
+    "digits": true,
+    "symbols": true,
+    "excludeAmbiguous": true
+  },
+  "timestamp": "2026-08-16T01:35:56.264Z"
+}
+```
+
+Garantiza al menos un carácter de cada juego activo. **400** si `kind` es inválido, `length` sale de rango o todos los juegos están en `false`.
+
+---
+
+### 6. Crear credencial
+
+Cifra el `payload` con **envelope encryption**: DEK aleatoria AES-256-GCM (AAD = `credential:<id>:<type>:<version>`) y wrap de esa DEK con `ENCRYPTION_KEY` (AAD = `dek:<id>:<version>`). Guarda el registro como **versión 1**.
 
 **POST** `/api/credentials`  
 **Auth:** requerida  
@@ -324,7 +376,7 @@ La respuesta **nunca** incluye `payload` ni ciphertext.
 
 ---
 
-### 6. Listar credenciales
+### 7. Listar credenciales
 
 Devuelve solo metadatos. Se puede filtrar.
 
@@ -389,7 +441,7 @@ Otros tipos de ejemplo para crear:
 
 ---
 
-### 7. Obtener metadatos por id
+### 8. Obtener metadatos por id
 
 **GET** `/api/credentials/:id`  
 **Auth:** requerida
@@ -406,7 +458,7 @@ Otros tipos de ejemplo para crear:
 
 ---
 
-### 8. Revelar credencial (POST)
+### 9. Revelar credencial (POST)
 
 Desencripta el payload y lo devuelve. Es **POST** a propósito: el valor no queda en access logs de query string.
 
@@ -433,7 +485,7 @@ Body: no hace falta.
 
 ---
 
-### 9. Verificar una contraseña
+### 10. Verificar una contraseña
 
 Compara un candidato contra el payload almacenado. **Solo aplica a `type=password`**.
 
@@ -476,7 +528,7 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 
 ---
 
-### 10. Eliminar credencial
+### 11. Eliminar credencial
 
 **DELETE** `/api/credentials/:id`  
 **Auth:** requerida
@@ -494,7 +546,7 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 
 ---
 
-### 11. Rotar credencial (nueva versión)
+### 12. Rotar credencial (nueva versión)
 
 Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones anteriores. El tipo no cambia.
 
@@ -533,7 +585,7 @@ Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones
 
 ---
 
-### 12. Listar versiones
+### 13. Listar versiones
 
 Devuelve el historial **sin** ciphertext ni plaintext.
 
@@ -555,7 +607,7 @@ Devuelve el historial **sin** ciphertext ni plaintext.
 
 ---
 
-### 13. Revelar una versión concreta
+### 14. Revelar una versión concreta
 
 El reveal usa la versión actual si no mandás `version`. El número de versión va en el **body**, no en la URL.
 
@@ -574,9 +626,9 @@ Verify también acepta `"version": 1` opcional (por defecto, la actual).
 
 ---
 
-### 14. Auditoría
+### 15. Auditoría
 
-Lista eventos de register, login, create, get, reveal, verify, rotate, delete y versions **del usuario autenticado**. **Nunca** guarda plaintext ni ciphertext.
+Lista eventos de register, login, generate, create, get, reveal, verify, rotate, delete y versions **del usuario autenticado**. **Nunca** guarda plaintext, ciphertext ni DEKs.
 
 **GET** `/api/audit`  
 **GET** `/api/audit?action=rotate`  
@@ -613,7 +665,7 @@ Lista eventos de register, login, create, get, reveal, verify, rotate, delete y 
 
 | Código | Significado |
 |--------|-------------|
-| 200 | Login, me, listar, get, versions, reveal, verify, rotate, delete, audit |
+| 200 | Login, me, generate, listar, get, versions, reveal, verify, rotate, delete, audit |
 | 201 | Usuario o credencial creados |
 | 400 | Validación (email, password de cuenta, tipo, name, payload, verify sobre no-password) |
 | 401 | JWT ausente, inválido, expirado; o login con credenciales incorrectas |
@@ -622,7 +674,7 @@ Lista eventos de register, login, create, get, reveal, verify, rotate, delete y 
 
 ## 🧪 Collection de Postman
 
-La collection **Crypto AES-256-GCM Vault** cubre el contrato: Health, Auth (401 / register / login / me), Create de los 4 tipos, validaciones 400, aislamiento entre usuarios (404 a credencial ajena), listado sin plaintext, reveal, verify, rotación, historial, auditoría y delete.
+La collection **Crypto AES-256-GCM Vault** cubre el contrato: Health, Auth (401 / register / login / me), Generate, Create de los 4 tipos, validaciones 400, aislamiento entre usuarios (404 a credencial ajena), listado sin plaintext, reveal, verify, rotación, historial, auditoría y delete.
 
 Archivo: `collections/bgvault.postman_collection.json`  
 El `_postman_id` se mantiene fijo para que reimportar **actualice** la collection y no abra otra.
@@ -661,6 +713,12 @@ TOKEN=$(curl -s -X POST "$BASE/api/auth/login" \
   | python -c "import sys,json; print(json.load(sys.stdin)['accessToken'])")
 
 AUTH="Authorization: Bearer $TOKEN"
+
+# Generar password
+curl -s -X POST "$BASE/api/generate" \
+  -H "Content-Type: application/json" \
+  -H "$AUTH" \
+  -d '{"kind":"password","length":24}'
 
 # Perfil
 curl -s "$BASE/api/auth/me" -H "$AUTH"
@@ -738,20 +796,24 @@ bgvault/
 │   ├── middleware/
 │   │   └── requireAuth.js           # Bearer JWT + carga del usuario
 │   ├── db/
-│   │   └── sqlite.js                # node:sqlite, schema, WAL, migrate user_id
+│   │   └── sqlite.js                # node:sqlite, schema, WAL, migrate user_id / wrapped_dek
 │   ├── store/
 │   │   ├── usersStore.js            # Cuentas
 │   │   ├── credentialsStore.js      # Credenciales + versiones (scoped)
 │   │   └── auditStore.js            # Audit log (scoped)
 │   ├── controllers/
 │   │   ├── authController.js        # register, login, me
+│   │   ├── generateController.js    # POST /api/generate
 │   │   ├── credentialController.js  # CRUD, reveal, verify, rotate, versions
 │   │   └── auditController.js
 │   ├── crypto/
-│   │   ├── lib.js                   # encrypt / decrypt AES-256-GCM + AAD
+│   │   ├── lib.js                   # encrypt / decrypt AES-256-GCM + AAD (wrap de DEK)
+│   │   ├── envelope.js              # seal / open con DEK por versión
+│   │   ├── generate.js              # CSPRNG passwords / api_key / token
 │   │   └── crypto-cli.js            # CLI: cifrar / descifrar un valor
 │   ├── routes/
 │   │   ├── authRoutes.js            # /api/auth
+│   │   ├── generateRoutes.js        # /api/generate
 │   │   ├── credentialRoutes.js      # /api/credentials
 │   │   └── auditRoutes.js           # /api/audit
 │   ├── server.js                    # Express, headers, 404/JSON inválido
@@ -776,7 +838,8 @@ La lógica de cifrado está aislada en un módulo independiente, pensado para co
 
 ### Archivo a copiar
 
-- **`src/crypto/lib.js`** — `encrypt(text, key, aad)` y `decrypt(blob, key, aad)`
+- **`src/crypto/lib.js`** — `encrypt(text, key, aad)` y `decrypt(blob, key, aad)` (el vault lo usa para **envolver la DEK**)
+- **`src/crypto/envelope.js`** — `seal` / `open` del payload (opcional si copiás solo el cifrador simple)
 
 ### Dependencias
 
@@ -823,16 +886,17 @@ Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 
 | Pieza | Detalle |
 |-------|---------|
-| Algoritmo | AES-256-GCM |
-| Derivación | PBKDF2, 100.000 iteraciones, SHA-256 |
-| Salt | 64 bytes aleatorios / mensaje |
-| IV | 12 bytes aleatorios / mensaje |
-| AAD | `credential:<id>:<type>:<version>` en el vault |
+| Payload | AES-256-GCM con **DEK aleatoria** de 32 bytes (`dek:iv:tag:ciphertext`) |
+| Wrap de DEK | AES-256-GCM + PBKDF2 sobre `ENCRYPTION_KEY` (`salt:iv:tag:encrypted`) |
+| AAD payload | `credential:<id>:<type>:<version>` |
+| AAD DEK | `dek:<id>:<version>` |
+| Legado | versiones sin `wrapped_dek` se abren con `lib.decrypt` directo |
 | Autenticación | Tag GCM (integridad + autenticidad) |
+| Generador | `crypto.randomInt`, sin `Math.random` |
 
 ### Qué no se filtra
 
-- GET y list **no** devuelven ciphertext ni plaintext
+- GET y list **no** devuelven ciphertext, `wrappedDek` ni plaintext
 - Reveal es POST: la credencial no queda en la URL
 - No hay `?decrypt=true`
 - `X-Powered-By` deshabilitado; `X-Content-Type-Options: nosniff`; `X-Frame-Options: DENY`
@@ -859,7 +923,7 @@ Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 
 - **JWT sin refresh/revocación**: el token vale hasta `exp`; borrar el usuario invalida `me` y el vault en el acto, pero un JWT ya emitido sigue verificándose hasta que el `sub` desaparece
 - **Sin roles/admin**: todos los usuarios son dueños de su vault; no hay sharing
-- **Sin envelope encryption / KMS**: una sola `ENCRYPTION_KEY` envuelve el payload de todos
+- **Sin re-wrap de DEK**: cambiar `ENCRYPTION_KEY` no rota las DEKs ya envueltas; las versiones nuevas usan la clave actual
 - **SQLite local**: un proceso, un archivo; no está pensado para un clúster
 - Pensado como vault profesional de desarrollo y base de un producto, no como HSM de producción
 
