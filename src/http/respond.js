@@ -11,6 +11,7 @@ const CODES = {
   CREDENTIAL_EXPIRED: 'CREDENTIAL_EXPIRED',
   REVEAL_LIMIT: 'REVEAL_LIMIT',
   RATE_LIMITED: 'RATE_LIMITED',
+  TOKEN_REVOKED: 'TOKEN_REVOKED',
 };
 
 function sendOk(res, status, body = {}) {

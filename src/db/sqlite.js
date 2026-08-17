@@ -55,6 +55,14 @@ CREATE TABLE IF NOT EXISTS audit_events (
   detail TEXT
 );
 
+CREATE TABLE IF NOT EXISTS revoked_tokens (
+  jti TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  exp INTEGER NOT NULL,
+  revoked_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_credentials_type ON credentials(type);
 CREATE INDEX IF NOT EXISTS idx_credentials_service ON credentials(service);
 CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_events(at);
@@ -95,6 +103,7 @@ function migrate(conn) {
 
   conn.exec('CREATE INDEX IF NOT EXISTS idx_credentials_user ON credentials(user_id)');
   conn.exec('CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_events(user_id)');
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_revoked_exp ON revoked_tokens(exp)');
 }
 
 function resolveDbPath() {
@@ -115,6 +124,17 @@ function open() {
   db.exec(SCHEMA);
   migrate(db);
   return db;
+}
+
+function close() {
+  if (!db) return;
+  try {
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  } catch {
+    // :memory: or engines without WAL
+  }
+  db.close();
+  db = null;
 }
 
 function getDb() {
@@ -141,6 +161,7 @@ function runInTransaction(fn) {
 module.exports = {
   open,
   getDb,
+  close,
   runInTransaction,
   resolveDbPath,
   DATA_DIR,
