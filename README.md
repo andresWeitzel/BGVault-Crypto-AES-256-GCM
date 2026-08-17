@@ -25,7 +25,7 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **Autenticación JWT**: register/login emiten un Bearer HS256 con `jti`; `POST /api/auth/logout` lo revoca hasta `exp`
 - ✅ **Aislamiento por usuario**: cada credencial y cada evento de auditoría pertenece a un `user_id`; un JWT ajeno recibe 404, no 403
 - ✅ **Sobre JSON uniforme**: éxitos llevan `requestId` + `timestamp`; errores son `{ error: { code, message }, requestId, timestamp }`
-- ✅ **Rate limit**: tope en register/login y en reveal/verify (`X-RateLimit-*`, **429** `RATE_LIMITED`)
+- ✅ **Rate limit**: tope en register/login, reveal/verify y (opcional) global por IP vía `RATE_LIMIT_IP_MAX` (`X-RateLimit-*`, **429** `RATE_LIMITED`)
 - ✅ **Sin clave por defecto**: el servidor no arranca con `default-key-change-me…`; exige `ENCRYPTION_KEY` y `JWT_SECRET` (≥ 32 caracteres)
 - ✅ **Collection de Postman**: casos de éxito (201/200) y error (400/401/404/409/410) con scripts `pm.test` ejecutables desde el Runner
 - ✅ **Módulo reutilizable**: `src/crypto/lib.js` se copia a otros proyectos Node sin dependencias extra
@@ -69,6 +69,8 @@ npm run server
 | `RATE_LIMIT_AUTH_WINDOW_MS` | Ventana de auth en ms (por defecto `600000` = 10 min) |
 | `RATE_LIMIT_REVEAL_MAX` | Tope de reveal/verify por usuario (por defecto `120`) |
 | `RATE_LIMIT_REVEAL_WINDOW_MS` | Ventana de reveal/verify en ms (por defecto `60000` = 1 min) |
+| `RATE_LIMIT_IP_MAX` | Tope **global** de `/api/*` por IP; vacío = desactivado. Se setea en Render / Railway sin cambiar código |
+| `RATE_LIMIT_IP_WINDOW_MS` | Ventana del tope global (por defecto `600000` = 10 min) |
 
 En la collection de Postman el usuario de demo es `demo@bgvault.local` / `bgvault-dev-password` (se crea en el Runner). En producción usá valores distintos y largos.
 
@@ -137,6 +139,92 @@ Auth: JWT Bearer (POST /api/auth/register, /login; POST /api/auth/logout)
 | `npm run rewrap-keys` | Reenvuelve `wrapped_dek` con `ENCRYPTION_KEY_NEXT` (no toca el payload) |
 | `npm test` | Tests nativos (`node --test`): auth, logout/`jti`, aislamiento, PATCH, paginación, 410 |
 
+## ☁️ Deploy (Render Free)
+
+Sandbox público **sin pago mensual**. Misma API que en local. Lo que configura el hosting está en `render.yaml`.
+
+### Qué hace Render y qué no
+
+| Sí | No (Free) |
+|----|-----------|
+| HTTPS `https://bgvault-xxxx.onrender.com` | Disco persistente (la SQLite vive en `/tmp`) |
+| `npm install` + `node src/server.js` | SSH, jobs, `rewrap-keys` en el server |
+| Env `ENCRYPTION_KEY` / `JWT_SECRET` / rate limit | Postgres (no hace falta: el vault usa SQLite) |
+| Health `GET /health` | Datos de ayer: al dormir (~15 min) o redeploy, la base arranca **vacía** |
+| Rate limit por IP (`RATE_LIMIT_IP_MAX`) | 24/7 sin cold start (primera pega ~30–60 s) |
+
+Cada uno se registra aparte: no ve el password ni el id de otro **mientras** el contenedor está despierto. Cerrar Postman **no** borra la base; la borra el sleep/redeploy.
+
+### A. Blueprint (recomendado)
+
+El repo tiene que estar en GitHub **con estos cambios pusheados** (`render.yaml` en la misma carpeta que `package.json`).
+
+1. [dashboard.render.com](https://dashboard.render.com) → Login (GitHub)
+2. **New** → **Blueprint**
+3. Autorizá el repo de BGVault
+4. **Branch:** `master` (o la que uses)
+5. **Blueprint path:** `render.yaml` (raíz). Si GitHub tiene carpetas de más, **Root Directory** = carpeta del `package.json`
+6. Apply. Plan **Free**. `ENCRYPTION_KEY` y `JWT_SECRET` se **generan solos** (`generateValue`, ≥ 32 caracteres, distintos)
+7. Esperá **Live** (unos minutos). Copiá la URL `https://….onrender.com`
+
+### B. A mano (si no usás Blueprint)
+
+**New** → **Web Service** → el repo →:
+
+| Campo | Valor |
+|-------|--------|
+| Language / runtime | Node |
+| Branch | `master` |
+| Root Directory | (vacío si `package.json` está en la raíz del repo) |
+| Build Command | `npm install` |
+| Start Command | `node src/server.js` |
+| Instance type | **Free** |
+| Health Check Path | `/health` |
+
+**Environment** (Environment → Add):
+
+| Key | Value |
+|-----|--------|
+| `NODE_VERSION` | `22.13.0` |
+| `HOST` | `0.0.0.0` |
+| `SQLITE_PATH` | `/tmp/bgvault.sqlite` |
+| `ENCRYPTION_KEY` | Generate / 32+ chars **distinto** de JWT |
+| `JWT_SECRET` | Generate / 32+ chars **distinto** de la KEK |
+| `RATE_LIMIT_IP_MAX` | `40` (o `10` si querés más cerrado) |
+| `RATE_LIMIT_IP_WINDOW_MS` | `600000` |
+| `RATE_LIMIT_AUTH_MAX` | `20` |
+| `RATE_LIMIT_AUTH_WINDOW_MS` | `600000` |
+| `RATE_LIMIT_REVEAL_MAX` | `120` |
+| `RATE_LIMIT_REVEAL_WINDOW_MS` | `60000` |
+
+`PORT` lo pone Render. No lo hardcodees a 3000.
+
+No agregues **Persistent Disk**, **Postgres** ni **Key Value**.
+
+### Probar
+
+La primera request puede tardar un minuto (cold start).
+
+```bash
+curl -si "https://<servicio>.onrender.com/health"
+```
+
+Esperado: **200**, `"status":"OK"`. Después:
+
+```bash
+curl -s -X POST "https://<servicio>.onrender.com/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@bgvault.local","password":"bgvault-dev-password"}'
+```
+
+Postman: collection `collections/bgvault.postman_collection.json` → variable `baseUrl` = `https://<servicio>.onrender.com` (timeout ≥ 90 s en el primer Health). El Runner completo suele superar 40 hits: o subís `RATE_LIMIT_IP_MAX` o corrés la collection en local.
+
+Si alguien se pasa del tope por IP: **429** `RATE_LIMITED` (`Demasiadas solicitudes para esta IP`). Otra IP no se bloquea.
+
+### Railway (opcional)
+
+Pago / trial. `railway.toml` + volume `/data` y `SQLITE_PATH=/data/bgvault.sqlite` si querés que la base sobreviva redeploys. Spending cap en Usage.
+
 ## 🔑 Autenticación
 
 `GET /health` es público. `POST /api/auth/register` y `POST /api/auth/login` también (emiten el token).
@@ -185,12 +273,12 @@ Toda respuesta JSON incluye `timestamp` y `requestId` (también en el header `X-
 | `EMAIL_TAKEN` | 409 | Register con email ya usado |
 | `CREDENTIAL_EXPIRED` | 410 | `expiresAt` vencido (sin desencriptar) |
 | `REVEAL_LIMIT` | 410 | `maxReveals` agotado (sin desencriptar) |
-| `RATE_LIMITED` | 429 | Tope de register/login o reveal/verify |
+| `RATE_LIMITED` | 429 | Tope de register/login, reveal/verify o `RATE_LIMIT_IP_MAX` por IP |
 | `INTERNAL` | 500 | Fallo no controlado (mensaje genérico) |
 
 Los 500 loguean el `requestId` en consola para correlacionar. No se usa el texto de `message` como API estable: el cliente debe ramificar por `code`.
 
-Register/login: 60 req / 10 min por IP. Reveal y verify: 120 / min por usuario. Headers `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; en 429 también `Retry-After`.
+Register/login: 60 req / 10 min por IP (`RATE_LIMIT_AUTH_MAX`). Reveal y verify: 120 / min por usuario. Tope global opcional: `RATE_LIMIT_IP_MAX` requests a `/api/*` por IP y ventana (`RATE_LIMIT_IP_WINDOW_MS`). Headers `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; en 429 también `Retry-After`.
 
 ## 📡 API Endpoints
 
@@ -952,7 +1040,7 @@ Lista eventos de register, login, logout, generate, create, get, patch, reveal, 
 | 404 | Credencial ajena, inexistente, o ruta inexistente |
 | 409 | Email ya registrado |
 | 410 | Versión vencida o sin revelaciones restantes |
-| 429 | Rate limit en register/login o reveal/verify |
+| 429 | Rate limit en register/login, reveal/verify o `RATE_LIMIT_IP_MAX` por IP |
 
 ## 🧪 Collection de Postman
 
@@ -963,7 +1051,7 @@ El `_postman_id` se mantiene fijo para que reimportar **actualice** la collectio
 
 ### Cómo ejecutarla
 
-1. `npm run setup-env` y `npm run server`
+1. Local: `npm run setup-env` y `npm run server`. Render: cambiá `baseUrl` a `https://<servicio>.onrender.com` (timeout alto en Health).
 2. En Postman: **Import** → `collections/bgvault.postman_collection.json` (si ya existe, **Replace**)
 3. **Runner** → **Run collection** (en orden). Auth registra `demo@bgvault.local` (o hace login si ya existe) y guarda `accessToken`
 4. Guardá (Ctrl+S) si Postman te pide persistir variables
@@ -1126,7 +1214,7 @@ bgvault/
 │   ├── middleware/
 │   │   ├── requireAuth.js           # Bearer JWT, jti no revocado
 │   │   ├── requestId.js             # X-Request-Id (UUID o correlacioná el tuyo)
-│   │   └── rateLimit.js             # tope in-memory (auth + reveal)
+│   │   └── rateLimit.js             # tope in-memory (auth + reveal + IP opcional)
 │   ├── http/
 │   │   ├── respond.js               # envelope { error: { code, message } }
 │   │   └── paging.js                # limit/offset (list y audit)
@@ -1168,6 +1256,9 @@ bgvault/
 │   └── client/
 │       └── client.sh                # Cliente bash (post / get)
 ├── .env.example
+├── .nvmrc
+├── railway.toml
+├── render.yaml
 ├── package.json
 └── README.md
 ```

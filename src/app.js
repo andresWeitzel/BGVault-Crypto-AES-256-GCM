@@ -6,10 +6,12 @@ const generateRoutes = require('./routes/generateRoutes');
 const credentialRoutes = require('./routes/credentialRoutes');
 const auditRoutes = require('./routes/auditRoutes');
 const requireAuth = require('./middleware/requireAuth');
+const { createIpRateLimit } = require('./middleware/rateLimit');
 
 function createApp() {
   const app = express();
   app.disable('x-powered-by');
+  app.set('trust proxy', 1);
   app.use(requestId);
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -18,6 +20,7 @@ function createApp() {
   });
 
   app.use(express.json({ limit: '32kb' }));
+  app.use('/api', createIpRateLimit());
 
   app.get('/health', (req, res) => {
     return sendOk(res, 200, {

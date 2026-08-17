@@ -9,8 +9,19 @@ function envInt(name, fallback) {
   return fallback;
 }
 
+function firstForwarded(value) {
+  if (typeof value !== 'string') return '';
+  const ip = value.split(',')[0].trim();
+  return ip || '';
+}
+
 function clientIp(req) {
-  return req.socket?.remoteAddress || req.ip || 'unknown';
+  const realIp = firstForwarded(req.headers['x-real-ip']);
+  if (realIp) return realIp;
+  const forwarded = firstForwarded(req.headers['x-forwarded-for']);
+  if (forwarded) return forwarded;
+  if (req.ip) return req.ip;
+  return req.socket?.remoteAddress || 'unknown';
 }
 
 function prune(now) {
@@ -29,13 +40,13 @@ function prune(now) {
   }
 }
 
-function createRateLimit({ max, windowMs, keyFn }) {
+function createRateLimit({ max, windowMs, keyFn, message = 'Demasiadas solicitudes' }) {
   return function rateLimit(req, res, next) {
     const now = Date.now();
     prune(now);
     const key = keyFn(req);
     let bucket = buckets.get(key);
-    if (!bucket || now - bucket.start >= windowMs) {
+    if (!bucket || now - bucket.start >= bucket.windowMs) {
       bucket = { start: now, count: 0, windowMs };
     }
     bucket.count += 1;
@@ -50,10 +61,25 @@ function createRateLimit({ max, windowMs, keyFn }) {
     if (bucket.count > max) {
       const retryAfter = Math.max(1, Math.ceil((bucket.start + windowMs - now) / 1000));
       res.setHeader('Retry-After', String(retryAfter));
-      return sendError(res, 429, CODES.RATE_LIMITED, 'Demasiadas solicitudes');
+      return sendError(res, 429, CODES.RATE_LIMITED, message);
     }
     return next();
   };
+}
+
+function skip(_req, _res, next) {
+  return next();
+}
+
+function createIpRateLimit() {
+  const max = Number(process.env.RATE_LIMIT_IP_MAX);
+  if (!Number.isInteger(max) || max < 1) return skip;
+  return createRateLimit({
+    max,
+    windowMs: envInt('RATE_LIMIT_IP_WINDOW_MS', 10 * 60 * 1000),
+    keyFn: (req) => `ip:${clientIp(req)}`,
+    message: 'Demasiadas solicitudes para esta IP',
+  });
 }
 
 const limitAuth = createRateLimit({
@@ -70,6 +96,7 @@ const limitReveal = createRateLimit({
 
 module.exports = {
   createRateLimit,
+  createIpRateLimit,
   limitAuth,
   limitReveal,
   clientIp,
