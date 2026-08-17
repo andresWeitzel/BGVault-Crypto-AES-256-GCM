@@ -217,7 +217,7 @@ curl -s -X POST "https://<servicio>.onrender.com/api/auth/register" \
   -d '{"email":"demo@bgvault.local","password":"bgvault-dev-password"}'
 ```
 
-Postman: collection `collections/bgvault.postman_collection.json` → variable `baseUrl` = `https://<servicio>.onrender.com` (timeout ≥ 90 s en el primer Health). El Runner completo suele superar 40 hits: o subís `RATE_LIMIT_IP_MAX` o corrés la collection en local.
+Postman: un solo JSON. Variable `environment` = `local` o `production` (pre-request setea `baseUrl`). Timeout ≥ 90 s en el primer Health de production. El Runner completo suele superar 40 hits: o subís `RATE_LIMIT_IP_MAX` o corrés con `local`.
 
 Si alguien se pasa del tope por IP: **429** `RATE_LIMITED` (`Demasiadas solicitudes para esta IP`). Otra IP no se bloquea.
 
@@ -1047,15 +1047,30 @@ Lista eventos de register, login, logout, generate, create, get, patch, reveal, 
 
 La collection **Crypto AES-256-GCM Vault** cubre el contrato con `pm.test` en cada request: Health (+ `X-Request-Id`), Auth (401/400/409, logout/`TOKEN_REVOKED`), Generate, Create, list/paginación, PATCH de metadatos, aislamiento, Reveal, Lifecycle (one-time `REVEAL_LIMIT` y TTL `CREDENTIAL_EXPIRED`), verify, rotación, auditoría paginada y delete.
 
-Archivo: `collections/bgvault.postman_collection.json`  
-El `_postman_id` se mantiene fijo para que reimportar **actualice** la collection y no abra otra.
+Archivo: `collections/bgvault.postman_collection.json` (un solo JSON).  
+El entorno vive en **variables de la collection**:
+
+| Variable | Valores | Host |
+|----------|---------|------|
+| `environment` | `local` (default) o `production` | — |
+| `baseUrlLocal` | `http://localhost:3000` | Local |
+| `baseUrlProduction` | `https://bgvault.onrender.com` | Production |
+| `baseUrl` | lo setea el **pre-request** de la collection | eligido por `environment` |
+
+Editá `environment` en la collection (Variables). Runner: **Environment: none**. Si queda un environment de Postman viejo con `baseUrl`, pisa el de la collection: borralo.
+
+El `_postman_id` se mantiene fijo para que reimportar **Replace** actualice y no duplique.
 
 ### Cómo ejecutarla
 
-1. Local: `npm run setup-env` y `npm run server`. Render: cambiá `baseUrl` a `https://<servicio>.onrender.com` (timeout alto en Health).
-2. En Postman: **Import** → `collections/bgvault.postman_collection.json` (si ya existe, **Replace**)
-3. **Runner** → **Run collection** (en orden). Auth registra `demo@bgvault.local` (o hace login si ya existe) y guarda `accessToken`
-4. Guardá (Ctrl+S) si Postman te pide persistir variables
+1. Local: `npm run setup-env` y `npm run server`, `environment=local`. Production: `environment=production` (la primera pega a Render puede tardar ~1 min)
+2. Postman **Import** → `collections/bgvault.postman_collection.json` (si ya existe, **Replace**)
+3. **Runner** → **Run collection** (en orden). Auth registra `demo@bgvault.local` (o login si ya existe) y guarda `accessToken`
+4. Guardá (Ctrl+S) si Postman pide persistir variables
+
+En el Runner, **Environment: none**. El host lo decide `environment` (`local` / `production`) en las variables de la collection.
+
+Si Render está dormido, Health puede tardar; subí el timeout del request o esperá y reintentá. El Runner completo contra Free puede pegar **429** `RATE_LIMITED` (`RATE_LIMIT_IP_MAX=40`); el contrato se prueba entero en local.
 
 La collection envía `Authorization: Bearer {{accessToken}}` en vault y me. Health, register, login, 401, 404 de ruta y JSON inválido van con `noauth` cuando corresponde.
 
@@ -1063,7 +1078,7 @@ Los tests comprueban status y `error.code`, que GET/list no filtren `payload` ni
 
 El re-wrap de DEKs (`npm run rewrap-keys`) no está en Postman: es un CLI de operador, no un endpoint.
 
-Si el Runner dice **Environment: none**, está bien: el token se guarda en **variables de la collection**.
+Si el Runner dice **Environment: none**, está bien: `environment=local` o `production` en la collection.
 
 ## 📝 Ejemplos de uso
 

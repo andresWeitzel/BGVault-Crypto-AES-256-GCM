@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "c8d5f0b2-6e3a-4d9c-8b42-1f7e3c9d2a85",
     "name": "Crypto AES-256-GCM Vault",
-    "description": "Crypto AES-256-GCM Vault — passwords, API keys, tokens y notas.\n\nAuth de la collection: `Authorization: Bearer {{accessToken}}`.\n\n1. Local: `npm run setup-env` y `npm run server`. `baseUrl` = `http://localhost:3000`.\n2. Render: `baseUrl` = `https://<servicio>.onrender.com` (primera request ~30–60 s; timeout alto). `RATE_LIMIT_IP_MAX` en Free suele ser 40; el Runner completo puede 429 — en local no hay tope global.\n3. Runner → **Run collection** (en orden). El folder Auth registra/loguea y guarda `accessToken`.\n4. Health y register/login son públicos. Los 401 van sin token a propósito.\n5. Cubre PATCH de metadatos, paginación list/audit, 410 TTL y envelope de error `{ code, message }`.\nEl re-wrap de DEKs es CLI (`npm run rewrap-keys`), no un request HTTP.",
+    "description": "Crypto AES-256-GCM Vault — passwords, API keys, tokens y notas.\n\nEntorno (variables de esta collection, Environment: none):\n- `environment` = `local` o `production`\n- `baseUrlLocal` / `baseUrlProduction` (el pre-request arma `baseUrl`)\n\nAuth: `Authorization: Bearer {{accessToken}}`.\n\n1. Local: `npm run setup-env` y `npm run server`, `environment=local`.\n2. Production: `environment=production` (`https://bgvault.onrender.com`). Primera request ~30–60 s. `RATE_LIMIT_IP_MAX` en Free suele ser 40; el Runner completo puede 429 — en local no hay tope global.\n3. Runner → **Run collection** (en orden). Auth registra/loguea y guarda `accessToken`.\n4. Health y register/login son públicos. Los 401 van sin token a propósito.\n5. Cubre PATCH, paginación, 410 TTL y `{ error: { code, message } }`.\nEl re-wrap de DEKs es CLI (`npm run rewrap-keys`), no un request HTTP.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -15,6 +15,19 @@
     ]
   },
   "variable": [
+    {
+      "key": "environment",
+      "value": "local",
+      "description": "local | production — el pre-request elige baseUrlLocal o baseUrlProduction"
+    },
+    {
+      "key": "baseUrlLocal",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "baseUrlProduction",
+      "value": "https://bgvault.onrender.com"
+    },
     {
       "key": "baseUrl",
       "value": "http://localhost:3000"
@@ -78,6 +91,23 @@
     {
       "key": "credentialIdTtl",
       "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const env = String(pm.collectionVariables.get('environment') || 'local').trim().toLowerCase();",
+          "const urls = {",
+          "  local: pm.collectionVariables.get('baseUrlLocal') || 'http://localhost:3000',",
+          "  production: pm.collectionVariables.get('baseUrlProduction') || 'https://bgvault.onrender.com'",
+          "};",
+          "const baseUrl = urls[env] || urls.local;",
+          "pm.collectionVariables.set('baseUrl', baseUrl);"
+        ]
+      }
     }
   ],
   "item": [
