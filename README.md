@@ -7,6 +7,12 @@
   &nbsp;
   <img width="26" height="26" src="./doc/assets/icons/backend/javascript-typescript/svg/express-mark.svg" alt="Express" />
   &nbsp;
+  <img width="26" height="26" src="./doc/assets/icons/backend/databases/svg/sqlite.svg" alt="SQLite" />
+  &nbsp;
+  <img width="26" height="26" src="./doc/assets/icons/backend/crypto/svg/aes-256-gcm.svg" alt="AES-256-GCM" />
+  &nbsp;
+  <img width="26" height="26" src="./doc/assets/icons/backend/crypto/svg/jwt.svg" alt="JWT" />
+  &nbsp;
   <img width="26" height="26" src="./doc/assets/icons/devops/png/npm.png" alt="npm" />
   &nbsp;
   <img width="26" height="26" src="./doc/assets/icons/devops/png/git.png" alt="Git" />
