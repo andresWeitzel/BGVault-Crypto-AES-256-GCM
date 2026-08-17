@@ -9,9 +9,12 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **Vault de credenciales**: no es un encriptador suelto — es una API para crear, listar, revelar, verificar y eliminar credenciales
 - ✅ **Cuatro tipos**: `password`, `api_key`, `token` y `note`, cada uno con payload validado
 - ✅ **AES-256-GCM**: cifrado autenticado; el tag GCM detecta manipulación del ciphertext
-- ✅ **AAD ligado a la credencial**: Additional Authenticated Data `credential:<id>:<type>` — un blob no se puede reubicar en otro id o tipo
+- ✅ **AAD ligado a la credencial**: Additional Authenticated Data `credential:<id>:<type>:<version>` — un blob no se puede reubicar en otro id, tipo o versión
 - ✅ **IV de 12 bytes (NIST)** y salt de 64 bytes únicos por cada cifrado
 - ✅ **PBKDF2**: 100.000 iteraciones con SHA-256 para derivar la clave AES-256
+- ✅ **Persistencia SQLite**: las credenciales y versiones sobreviven al reinicio (`node:sqlite`, sin ORM)
+- ✅ **Versionado y rotación**: cada cambio de payload crea una versión nueva; la anterior sigue revelable
+- ✅ **Auditoría**: create, get, reveal, verify, rotate, delete y versions quedan en `audit_events` (sin plaintext)
 - ✅ **IDs UUID**: se abandonó el `index` numérico; cada credencial tiene identidad estable
 - ✅ **Metadatos en claro, payload cifrado**: `name`, `service` y `tags` se pueden filtrar; la clave/contraseña no aparece en GET
 - ✅ **Reveal por POST**: nada de `?decrypt=true` en la URL (evita logs de proxies y browsers)
@@ -21,13 +24,14 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **Módulo reutilizable**: `src/crypto/lib.js` se copia a otros proyectos Node sin dependencias extra
 - ✅ **Setup de entorno**: `npm run setup-env` genera o completa `.env`
 
-El almacén actual es **en memoria** (las credenciales se pierden al reiniciar). Persistencia y usuarios multi-tenant son la siguiente fase.
+El almacén es un archivo SQLite (`data/bgvault.sqlite`). Usuarios multi-tenant y JWT son la siguiente fase.
 
 ## 🛠️ Tecnologías
 
-- **Node.js**: runtime (18+ recomendado)
+- **Node.js**: runtime (22.13+ — incluye `node:sqlite`)
 - **Express**: API HTTP
 - **node:crypto**: único motor criptográfico
+- **node:sqlite**: persistencia, versiones y audit log
 - **AES-256-GCM**: cifrado simétrico con autenticación
 - **Postman Collection v2.1**: pruebas de contrato de la API
 
@@ -48,7 +52,8 @@ npm run server
 |----------|-----|
 | `PORT` | Puerto HTTP (por defecto `3000`) |
 | `ENCRYPTION_KEY` | Clave maestra de cifrado (≥ 32 caracteres, aleatoria) |
-| `API_KEY` | Clave de acceso a `/api/credentials*` |
+| `API_KEY` | Clave de acceso a `/api/credentials*` y `/api/audit` |
+| `SQLITE_PATH` | Ruta del archivo SQLite (por defecto `data/bgvault.sqlite`) |
 
 En desarrollo local la API key de la collection es `bgvault-dev-api-key-local` (la misma que espera Postman). En producción usá valores distintos y largos.
 
@@ -153,6 +158,7 @@ Verifica que el proceso esté vivo. No requiere auth.
 ```json
 {
   "status": "OK",
+  "persistence": "sqlite",
   "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
@@ -161,7 +167,7 @@ Verifica que el proceso esté vivo. No requiere auth.
 
 ### 2. Crear credencial
 
-Cifra el `payload` con AES-256-GCM (AAD = `credential:<id>:<type>`) y guarda el registro.
+Cifra el `payload` con AES-256-GCM (AAD = `credential:<id>:<type>:<version>`) y guarda el registro como **versión 1**.
 
 **POST** `/api/credentials`  
 **Auth:** requerida  
@@ -210,6 +216,7 @@ Cifra el `payload` con AES-256-GCM (AAD = `credential:<id>:<type>`) y guarda el 
     "name": "Gmail personal",
     "service": "Gmail",
     "tags": ["email"],
+    "currentVersion": 1,
     "createdAt": "2026-08-16T01:35:56.264Z",
     "updatedAt": "2026-08-16T01:35:56.264Z"
   },
@@ -405,11 +412,125 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 
 ---
 
+### 8. Rotar credencial (nueva versión)
+
+Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones anteriores. El tipo no cambia.
+
+**POST** `/api/credentials/:id/rotate`  
+**Auth:** requerida
+
+**Body:**
+```json
+{
+  "payload": {
+    "password": "nuevaContraseña456!",
+    "username": "usuario@example.com"
+  }
+}
+```
+
+**Respuesta 200:**
+```json
+{
+  "message": "Credencial rotada",
+  "credential": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "type": "password",
+    "name": "Gmail personal",
+    "service": "Gmail",
+    "tags": ["email"],
+    "currentVersion": 2,
+    "createdAt": "2026-08-16T01:35:56.264Z",
+    "updatedAt": "2026-08-16T01:40:00.000Z"
+  },
+  "timestamp": "2026-08-16T01:40:00.000Z"
+}
+```
+
+**400** si `payload` no cumple el tipo. **404** si el id no existe.
+
+---
+
+### 9. Listar versiones
+
+Devuelve el historial **sin** ciphertext ni plaintext.
+
+**GET** `/api/credentials/:id/versions`  
+**Auth:** requerida
+
+**Respuesta 200:**
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "currentVersion": 2,
+  "versions": [
+    { "version": 1, "createdAt": "2026-08-16T01:35:56.264Z" },
+    { "version": 2, "createdAt": "2026-08-16T01:40:00.000Z" }
+  ],
+  "timestamp": "2026-08-16T01:40:00.000Z"
+}
+```
+
+---
+
+### 10. Revelar una versión concreta
+
+El reveal usa la versión actual si no mandás `version`. El número de versión va en el **body**, no en la URL.
+
+**POST** `/api/credentials/:id/reveal`
+
+```json
+{
+  "version": 1
+}
+```
+
+**Respuesta 200:** incluye `version`, `currentVersion` y `payload`.  
+**404** `Versión no encontrada` si ese número no existe.
+
+Verify también acepta `"version": 1` opcional (por defecto, la actual).
+
+---
+
+### 11. Auditoría
+
+Lista eventos de create, get, reveal, verify, rotate, delete y versions. **Nunca** guarda plaintext ni ciphertext.
+
+**GET** `/api/audit`  
+**GET** `/api/audit?action=rotate`  
+**GET** `/api/audit?credentialId=<uuid>&limit=50&offset=0`  
+**Auth:** requerida
+
+**Respuesta 200:**
+```json
+{
+  "events": [
+    {
+      "id": 12,
+      "at": "2026-08-16T01:40:00.000Z",
+      "action": "rotate",
+      "credentialId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "version": 2,
+      "ok": true,
+      "detail": { "from": 1, "to": 2 }
+    }
+  ],
+  "limit": 50,
+  "offset": 0,
+  "count": 1,
+  "timestamp": "2026-08-16T01:40:00.000Z"
+}
+```
+
+`limit` máximo: 200.
+
+---
+
 ### Códigos HTTP (resumen)
 
 | Código | Significado |
 |--------|-------------|
-| 200 | Listar, get, reveal, verify, delete |
+| 200 | Listar, get, versions, reveal, verify, rotate, delete, audit |
 | 201 | Credencial creada |
 | 400 | Validación (tipo, name, payload, verify sobre no-password) |
 | 401 | Falta o no coincide `API_KEY` |
@@ -417,7 +538,7 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 
 ## 🧪 Collection de Postman
 
-La collection **Crypto AES-256-GCM Vault** cubre el contrato completo: Health, Auth (401), Create de los 4 tipos, validaciones 400, listado sin plaintext, reveal, verify y delete.
+La collection **Crypto AES-256-GCM Vault** cubre el contrato: Health, Auth (401), Create de los 4 tipos, validaciones 400, listado sin plaintext, reveal, verify, rotación, historial, auditoría y delete.
 
 Archivo: `collections/bgvault.postman_collection.json`  
 El `_postman_id` se mantiene fijo para que reimportar **actualice** la collection y no abra otra.
@@ -474,6 +595,24 @@ curl -s -X POST "$BASE/api/credentials/<id>/verify" \
   -H "X-API-Key: $API_KEY" \
   -d '{ "password": "miContraseña123" }'
 
+# Rotar
+curl -s -X POST "$BASE/api/credentials/<id>/rotate" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{ "payload": { "password": "nueva", "username": "usuario@example.com" } }'
+
+# Versiones
+curl -s "$BASE/api/credentials/<id>/versions" -H "X-API-Key: $API_KEY"
+
+# Revelar versión histórica
+curl -s -X POST "$BASE/api/credentials/<id>/reveal" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{ "version": 1 }'
+
+# Auditoría
+curl -s "$BASE/api/audit?action=rotate" -H "X-API-Key: $API_KEY"
+
 # Eliminar
 curl -s -X DELETE "$BASE/api/credentials/<id>" \
   -H "X-API-Key: $API_KEY"
@@ -498,19 +637,26 @@ bgvault/
 │   │   └── env.js                   # Carga .env y valida ENCRYPTION_KEY / API_KEY
 │   ├── middleware/
 │   │   └── requireApiKey.js         # Auth X-API-Key / Bearer + timingSafeEqual
+│   ├── db/
+│   │   └── sqlite.js                # node:sqlite, schema, WAL
 │   ├── store/
-│   │   └── credentialsStore.js      # Almacén in-memory (Map por UUID)
+│   │   ├── credentialsStore.js      # Credenciales + versiones
+│   │   └── auditStore.js            # Audit log
 │   ├── controllers/
-│   │   └── credentialController.js  # Create, list, get, reveal, verify, delete
+│   │   ├── credentialController.js  # CRUD, reveal, verify, rotate, versions
+│   │   └── auditController.js
 │   ├── crypto/
 │   │   ├── lib.js                   # encrypt / decrypt AES-256-GCM + AAD
 │   │   └── crypto-cli.js            # CLI: cifrar / descifrar un valor
 │   ├── routes/
-│   │   └── credentialRoutes.js      # /api/credentials
+│   │   ├── credentialRoutes.js      # /api/credentials
+│   │   └── auditRoutes.js           # /api/audit
 │   ├── server.js                    # Express, headers, 404/JSON inválido
 │   └── setup/
 │       ├── setup-env.js             # Genera o completa .env
 │       └── decrypt-env.js           # Muestra *_ENCRYPTED
+├── data/
+│   └── .gitkeep                     # bgvault.sqlite (gitignored)
 ├── collections/
 │   └── bgvault.postman_collection.json
 ├── scripts/
@@ -539,7 +685,7 @@ La lógica de cifrado está aislada en un módulo independiente, pensado para co
 const { encrypt, decrypt } = require('./src/crypto/lib');
 
 const clave = process.env.ENCRYPTION_KEY;
-const aad = 'credential:<id>:password';
+const aad = 'credential:<id>:password:1';
 
 const cifrado = encrypt('mi contraseña', clave, aad);
 const plano = decrypt(cifrado, clave, aad);
@@ -547,7 +693,7 @@ const plano = decrypt(cifrado, clave, aad);
 
 - Si no pasás `key`, usa `process.env.ENCRYPTION_KEY`.
 - `aad` es opcional, pero **el mismo valor** tiene que usarse al cifrar y al descifrar.
-- El vault ata AAD a `credential:<uuid>:<type>`.
+- El vault ata AAD a `credential:<uuid>:<type>:<version>`.
 
 ### CLI
 
@@ -578,7 +724,7 @@ Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 | Derivación | PBKDF2, 100.000 iteraciones, SHA-256 |
 | Salt | 64 bytes aleatorios / mensaje |
 | IV | 12 bytes aleatorios / mensaje |
-| AAD | `credential:<id>:<type>` en el vault |
+| AAD | `credential:<id>:<type>:<version>` en el vault |
 | Autenticación | Tag GCM (integridad + autenticidad) |
 
 ### Qué no se filtra
@@ -599,24 +745,24 @@ Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 
 ## ⚠️ Limitaciones
 
-- **Memoria**: las credenciales se pierden al reiniciar el proceso
 - **Un solo `API_KEY`**: no hay usuarios, roles ni tenants todavía
-- **Sin rotación / versionado** de credenciales ni envelope encryption con KMS
-- **Sin persistencia** (SQLite/Postgres es la siguiente fase)
-- Pensado como vault de desarrollo y base de un producto, no como caja fuerte de producción cerrada
+- **Sin envelope encryption / KMS**: una sola `ENCRYPTION_KEY` envuelve todo
+- **SQLite local**: un proceso, un archivo; no está pensado para un clúster
+- Pensado como vault profesional de desarrollo y base de un producto, no como HSM de producción
 
 ## 🛠️ Desarrollo
 
 ### Requisitos
 
-- Node.js 18+ (recomendado)
+- Node.js **22.13+** (usa `node:sqlite`; recomendado 22 o 24/26)
 - npm
 - Postman (para la collection) o Bash/Git Bash (para `client.sh`)
 
 ### Módulos nativos utilizados
 
 - `node:crypto` — cifrado, UUID, `timingSafeEqual`, generación de claves
-- `node:fs` / `node:path` — `.env` y setup
+- `node:sqlite` — persistencia, versiones y auditoría
+- `node:fs` / `node:path` — `.env`, setup y directorio `data/`
 - `node:readline` — reservado para flujos interactivos de setup
 
 ## 📄 Licencia

@@ -5,6 +5,8 @@ const router = express.Router();
 
 router.post('/', credentialController.createCredential);
 router.get('/', credentialController.listCredentials);
+router.get('/:id/versions', credentialController.listVersions);
+router.post('/:id/rotate', credentialController.rotateCredential);
 router.get('/:id', credentialController.getCredential);
 router.post('/:id/reveal', credentialController.revealCredential);
 router.post('/:id/verify', credentialController.verifyCredential);
