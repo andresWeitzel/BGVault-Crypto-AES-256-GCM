@@ -19,6 +19,7 @@
     { "key": "password", "value": "miContraseña123!" },
     { "key": "username", "value": "usuario@example.com" },
     { "key": "wrongPassword", "value": "clave-incorrecta" },
+    { "key": "rotatedPassword", "value": "nuevaContraseña456!" },
     { "key": "credentialIdPassword", "value": "" },
     { "key": "credentialIdApiKey", "value": "" },
     { "key": "credentialIdToken", "value": "" },
@@ -531,6 +532,209 @@
                   "pm.test('Solo passwords', function () {",
                   "    pm.response.to.have.status(400);",
                   "    pm.expect(pm.response.json().error).to.eql('verify solo aplica a credenciales de tipo password');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Versions",
+      "item": [
+        {
+          "name": "Rotar password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payload\": {\n    \"password\": \"{{rotatedPassword}}\",\n    \"username\": \"{{username}}\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/rotate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Rotada a v2', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.message).to.eql('Credencial rotada');",
+                  "    pm.expect(json.credential.currentVersion).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar versiones",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/versions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Historial v1 y v2', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.currentVersion).to.eql(2);",
+                  "    pm.expect(json.versions).to.have.lengthOf(2);",
+                  "    json.versions.forEach(function (item) {",
+                  "        pm.expect(item).to.have.property('version');",
+                  "        pm.expect(item).to.have.property('createdAt');",
+                  "        pm.expect(item).to.not.have.property('ciphertext');",
+                  "        pm.expect(item).to.not.have.property('payload');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revelar versión actual (v2)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/reveal"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Payload rotado', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.version).to.eql(2);",
+                  "    pm.expect(json.payload.password).to.eql(pm.collectionVariables.get('rotatedPassword'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revelar versión 1 (histórica)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/reveal"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Histórica intacta', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.version).to.eql(1);",
+                  "    pm.expect(json.payload.password).to.eql(pm.collectionVariables.get('password'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 404 — versión inexistente",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 99\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/reveal"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Versión no encontrada', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    pm.expect(pm.response.json().error).to.eql('Versión no encontrada');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Audit",
+      "item": [
+        {
+          "name": "Listar auditoría",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/audit"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Hay eventos y no hay ciphertext', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.count).to.be.at.least(1);",
+                  "    json.events.forEach(function (item) {",
+                  "        pm.expect(item).to.have.property('action');",
+                  "        pm.expect(item).to.have.property('ok');",
+                  "        pm.expect(item).to.not.have.property('payload');",
+                  "        pm.expect(item).to.not.have.property('ciphertext');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar auditoría por action=rotate",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/audit?action=rotate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Solo rotate', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const json = pm.response.json();",
+                  "    json.events.forEach(function (item) {",
+                  "        pm.expect(item.action).to.eql('rotate');",
+                  "    });",
                   "});"
                 ]
               }

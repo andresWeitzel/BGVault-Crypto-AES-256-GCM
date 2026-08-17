@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const { encrypt, decrypt } = require('../crypto/lib');
 const store = require('../store/credentialsStore');
+const auditStore = require('../store/auditStore');
 
 const CREDENTIAL_TYPES = ['password', 'api_key', 'token', 'note'];
 
@@ -8,8 +9,8 @@ function now() {
   return new Date().toISOString();
 }
 
-function aadFor(id, type) {
-  return `credential:${id}:${type}`;
+function aadFor(id, type, version) {
+  return `credential:${id}:${type}:${version}`;
 }
 
 function toPublic(credential) {
@@ -19,9 +20,25 @@ function toPublic(credential) {
     name: credential.name,
     service: credential.service,
     tags: credential.tags,
+    currentVersion: credential.currentVersion,
     createdAt: credential.createdAt,
     updatedAt: credential.updatedAt,
   };
+}
+
+function audit({ action, credentialId = null, version = null, ok, detail = null, at }) {
+  try {
+    auditStore.append({ action, credentialId, version, ok, detail, at: at || now() });
+  } catch (error) {
+    console.error('Error al registrar auditoría:', error.message);
+  }
+}
+
+function parseVersion(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const version = Number(value);
+  if (!Number.isInteger(version) || version < 1) return undefined;
+  return version;
 }
 
 function normalizeTags(tags) {
@@ -55,14 +72,23 @@ function validatePayload(type, payload) {
   return null;
 }
 
-function encryptPayload(id, type, payload) {
-  return encrypt(JSON.stringify(payload), undefined, aadFor(id, type));
+function encryptPayload(id, type, payload, version) {
+  return encrypt(JSON.stringify(payload), undefined, aadFor(id, type, version));
 }
 
 function decryptPayload(credential) {
   return JSON.parse(
-    decrypt(credential.ciphertext, undefined, aadFor(credential.id, credential.type)),
+    decrypt(
+      credential.ciphertext,
+      undefined,
+      aadFor(credential.id, credential.type, credential.version),
+    ),
   );
+}
+
+function resolveRecord(id, requestedVersion) {
+  if (requestedVersion == null) return store.findById(id);
+  return store.findByIdAndVersion(id, requestedVersion);
 }
 
 function createCredential(req, res) {
@@ -104,11 +130,20 @@ function createCredential(req, res) {
       name: name.trim(),
       service: service && String(service).trim() ? String(service).trim() : null,
       tags: normalizedTags,
-      ciphertext: encryptPayload(id, type, payload),
+      currentVersion: 1,
+      ciphertext: encryptPayload(id, type, payload, 1),
       createdAt: timestamp,
       updatedAt: timestamp,
     };
     store.create(record);
+    audit({
+      action: 'create',
+      credentialId: id,
+      version: 1,
+      ok: true,
+      detail: { type, name: record.name },
+      at: timestamp,
+    });
 
     return res.status(201).json({
       message: 'Credencial almacenada',
@@ -144,59 +179,140 @@ function listCredentials(req, res) {
 function getCredential(req, res) {
   const credential = store.findById(req.params.id);
   if (!credential) {
+    audit({ action: 'get', credentialId: req.params.id, ok: false, detail: { reason: 'not_found' } });
     return res.status(404).json({
       error: 'Credencial no encontrada',
       timestamp: now(),
     });
   }
 
+  audit({
+    action: 'get',
+    credentialId: credential.id,
+    version: credential.currentVersion,
+    ok: true,
+  });
   return res.json({
     credential: toPublic(credential),
     timestamp: now(),
   });
 }
 
-function revealCredential(req, res) {
-  const credential = store.findById(req.params.id);
-  if (!credential) {
+function listVersions(req, res) {
+  const history = store.listVersions(req.params.id);
+  if (!history) {
     return res.status(404).json({
       error: 'Credencial no encontrada',
       timestamp: now(),
     });
   }
 
-  try {
-    const payload = decryptPayload(credential);
-    return res.json({
-      id: credential.id,
-      type: credential.type,
-      name: credential.name,
-      service: credential.service,
-      payload,
-      timestamp: now(),
-    });
-  } catch (error) {
-    console.error('Error al revelar la credencial:', error.message);
-    return res.status(500).json({
-      error: 'Error interno al revelar la credencial',
-      timestamp: now(),
-    });
-  }
+  audit({
+    action: 'versions',
+    credentialId: history.id,
+    version: history.currentVersion,
+    ok: true,
+  });
+  return res.json({
+    id: history.id,
+    currentVersion: history.currentVersion,
+    versions: history.versions,
+    timestamp: now(),
+  });
 }
 
-function verifyCredential(req, res) {
+function revealCredential(req, res) {
   const timestamp = now();
-  const credential = store.findById(req.params.id);
-  if (!credential) {
+  const requestedVersion = parseVersion(req.body?.version);
+  if (requestedVersion === undefined) {
+    return res.status(400).json({
+      error: 'version debe ser un entero mayor a 0',
+      timestamp,
+    });
+  }
+
+  const exists = store.exists(req.params.id);
+  if (!exists) {
+    audit({ action: 'reveal', credentialId: req.params.id, ok: false, detail: { reason: 'not_found' } });
     return res.status(404).json({
       error: 'Credencial no encontrada',
       timestamp,
     });
   }
 
-  if (credential.type !== 'password') {
+  const credential = resolveRecord(req.params.id, requestedVersion);
+  if (!credential) {
+    audit({
+      action: 'reveal',
+      credentialId: req.params.id,
+      version: requestedVersion,
+      ok: false,
+      detail: { reason: 'version_not_found' },
+    });
+    return res.status(404).json({
+      error: 'Versión no encontrada',
+      timestamp,
+    });
+  }
+
+  try {
+    const payload = decryptPayload(credential);
+    audit({
+      action: 'reveal',
+      credentialId: credential.id,
+      version: credential.version,
+      ok: true,
+    });
+    return res.json({
+      id: credential.id,
+      type: credential.type,
+      name: credential.name,
+      service: credential.service,
+      version: credential.version,
+      currentVersion: credential.currentVersion,
+      payload,
+      timestamp,
+    });
+  } catch (error) {
+    console.error('Error al revelar la credencial:', error.message);
+    return res.status(500).json({
+      error: 'Error interno al revelar la credencial',
+      timestamp,
+    });
+  }
+}
+
+function verifyCredential(req, res) {
+  const timestamp = now();
+  const exists = store.exists(req.params.id);
+  if (!exists) {
+    audit({ action: 'verify', credentialId: req.params.id, ok: false, detail: { reason: 'not_found' } });
+    return res.status(404).json({
+      error: 'Credencial no encontrada',
+      timestamp,
+    });
+  }
+
+  const meta = store.findById(req.params.id);
+  if (meta.type !== 'password') {
     return res.status(400).json({
       error: 'verify solo aplica a credenciales de tipo password',
+      timestamp,
+    });
+  }
+
+  const requestedVersion = parseVersion(req.body?.version);
+  if (requestedVersion === undefined) {
+    return res.status(400).json({
+      error: 'version debe ser un entero mayor a 0',
+      timestamp,
+    });
+  }
+
+  const credential = resolveRecord(req.params.id, requestedVersion);
+  if (!credential) {
+    return res.status(404).json({
+      error: 'Versión no encontrada',
       timestamp,
     });
   }
@@ -219,8 +335,17 @@ function verifyCredential(req, res) {
     }
     const isValid = Object.values(verified).every(Boolean);
 
+    audit({
+      action: 'verify',
+      credentialId: credential.id,
+      version: credential.version,
+      ok: isValid,
+      detail: { isValid },
+    });
+
     return res.json({
       id: credential.id,
+      version: credential.version,
       isValid,
       verified,
       message: isValid ? 'Valores válidos' : 'Valores inválidos',
@@ -235,15 +360,70 @@ function verifyCredential(req, res) {
   }
 }
 
+function rotateCredential(req, res) {
+  const timestamp = now();
+  const credential = store.findById(req.params.id);
+  if (!credential) {
+    audit({ action: 'rotate', credentialId: req.params.id, ok: false, detail: { reason: 'not_found' } });
+    return res.status(404).json({
+      error: 'Credencial no encontrada',
+      timestamp,
+    });
+  }
+
+  const payloadError = validatePayload(credential.type, req.body?.payload);
+  if (payloadError) {
+    return res.status(400).json({ error: payloadError, timestamp });
+  }
+
+  try {
+    const nextVersion = credential.currentVersion + 1;
+    const ciphertext = encryptPayload(
+      credential.id,
+      credential.type,
+      req.body.payload,
+      nextVersion,
+    );
+    const rotated = store.rotate(credential.id, { ciphertext, timestamp });
+    audit({
+      action: 'rotate',
+      credentialId: credential.id,
+      version: rotated.currentVersion,
+      ok: true,
+      detail: { from: credential.currentVersion, to: rotated.currentVersion },
+    });
+
+    return res.json({
+      message: 'Credencial rotada',
+      credential: toPublic(rotated),
+      timestamp,
+    });
+  } catch (error) {
+    console.error('Error al rotar la credencial:', error.message);
+    return res.status(500).json({
+      error: 'Error interno al rotar la credencial',
+      timestamp,
+    });
+  }
+}
+
 function deleteCredential(req, res) {
+  const existing = store.findById(req.params.id);
   const deleted = store.remove(req.params.id);
   if (!deleted) {
+    audit({ action: 'delete', credentialId: req.params.id, ok: false, detail: { reason: 'not_found' } });
     return res.status(404).json({
       error: 'Credencial no encontrada',
       timestamp: now(),
     });
   }
 
+  audit({
+    action: 'delete',
+    credentialId: req.params.id,
+    version: existing?.currentVersion ?? null,
+    ok: true,
+  });
   return res.json({
     message: 'Credencial eliminada',
     id: req.params.id,
@@ -255,7 +435,9 @@ module.exports = {
   createCredential,
   listCredentials,
   getCredential,
+  listVersions,
   revealCredential,
   verifyCredential,
+  rotateCredential,
   deleteCredential,
 };
