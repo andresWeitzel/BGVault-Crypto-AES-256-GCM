@@ -1,7 +1,7 @@
 require('./config/env').loadAndValidate();
 
 const express = require('express');
-const secretRoutes = require('./routes/secretRoutes');
+const credentialRoutes = require('./routes/credentialRoutes');
 const requireApiKey = require('./middleware/requireApiKey');
 
 const app = express();
@@ -23,7 +23,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.use('/api/secrets', requireApiKey, secretRoutes);
+app.use('/api/credentials', requireApiKey, credentialRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

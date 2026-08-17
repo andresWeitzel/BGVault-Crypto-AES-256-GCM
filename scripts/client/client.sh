@@ -281,12 +281,12 @@ SERVICE="${SERVICE:-demo-service}"
 
 # Función para hacer GET request
 get_passwords() {
-    echo -e "${BLUE}Listando secretos: ${SERVER_URL}/api/secrets${NC}"
+    echo -e "${BLUE}Listando credenciales: ${SERVER_URL}/api/credentials${NC}"
     echo ""
     
     response=$(curl -s -w "\n%{http_code}" \
         -H "X-API-Key: ${API_KEY}" \
-        "${SERVER_URL}/api/secrets")
+        "${SERVER_URL}/api/credentials")
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
     
@@ -314,7 +314,7 @@ post_password() {
     
     data="{\"type\":\"password\",\"name\":\"${service}\",\"service\":\"${service}\",\"payload\":{\"password\":\"${password}\",\"username\":\"${username}\"}}"
     
-    echo -e "${BLUE}Creando secreto en: ${SERVER_URL}/api/secrets${NC}"
+    echo -e "${BLUE}Creando credencial en: ${SERVER_URL}/api/credentials${NC}"
     echo ""
     
     response=$(curl -s -w "\n%{http_code}" \
@@ -322,13 +322,13 @@ post_password() {
         -H "Content-Type: application/json" \
         -H "X-API-Key: ${API_KEY}" \
         -d "$data" \
-        "${SERVER_URL}/api/secrets")
+        "${SERVER_URL}/api/credentials")
     
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
     
     if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
-        echo -e "${GREEN}✓ Contraseña enviada exitosamente (HTTP $http_code)${NC}"
+        echo -e "${GREEN}✓ Credencial creada (HTTP $http_code)${NC}"
         echo ""
         echo "$body" | python -m json.tool 2>/dev/null || echo "$body"
     else
@@ -348,8 +348,8 @@ case "$1" in
         ;;
     *)
         echo -e "${YELLOW}Uso:${NC}"
-        echo "  bash scripts/client/client.sh post  - Crear un secreto tipo password"
-        echo "  bash scripts/client/client.sh get   - Listar secretos (sin payload)"
+        echo "  bash scripts/client/client.sh post  - Crear una credencial tipo password"
+        echo "  bash scripts/client/client.sh get   - Listar credenciales (sin payload)"
         echo ""
         echo -e "${BLUE}Desde npm:${NC}"
         echo "  npm run client:post"

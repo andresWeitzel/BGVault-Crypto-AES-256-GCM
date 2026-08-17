@@ -19,10 +19,10 @@
     { "key": "password", "value": "miContraseña123!" },
     { "key": "username", "value": "usuario@example.com" },
     { "key": "wrongPassword", "value": "clave-incorrecta" },
-    { "key": "secretIdPassword", "value": "" },
-    { "key": "secretIdApiKey", "value": "" },
-    { "key": "secretIdToken", "value": "" },
-    { "key": "secretIdNote", "value": "" }
+    { "key": "credentialIdPassword", "value": "" },
+    { "key": "credentialIdApiKey", "value": "" },
+    { "key": "credentialIdToken", "value": "" },
+    { "key": "credentialIdNote", "value": "" }
   ],
   "item": [
     {
@@ -65,7 +65,7 @@
             "auth": { "type": "noauth" },
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/secrets"
+            "url": "{{baseUrl}}/api/credentials"
           },
           "event": [
             {
@@ -90,7 +90,7 @@
             "header": [
               { "key": "X-API-Key", "value": "clave-falsa" }
             ],
-            "url": "{{baseUrl}}/api/secrets"
+            "url": "{{baseUrl}}/api/credentials"
           },
           "event": [
             {
@@ -122,7 +122,7 @@
               "raw": "{\n  \"type\": \"password\",\n  \"name\": \"Gmail personal\",\n  \"service\": \"Gmail\",\n  \"tags\": [\"email\"],\n  \"payload\": {\n    \"password\": \"{{password}}\",\n    \"username\": \"{{username}}\"\n  }\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": "{{baseUrl}}/api/secrets"
+            "url": "{{baseUrl}}/api/credentials"
           },
           "event": [
             {
@@ -133,13 +133,13 @@
                   "const json = pm.response.json();",
                   "pm.test('Status 201', function () {",
                   "    pm.response.to.have.status(201);",
-                  "    pm.expect(json.secret.type).to.eql('password');",
-                  "    pm.expect(json.secret).to.have.property('id');",
-                  "    pm.expect(json.secret).to.not.have.property('payload');",
-                  "    pm.expect(json.secret).to.not.have.property('ciphertext');",
+                  "    pm.expect(json.credential.type).to.eql('password');",
+                  "    pm.expect(json.credential).to.have.property('id');",
+                  "    pm.expect(json.credential).to.not.have.property('payload');",
+                  "    pm.expect(json.credential).to.not.have.property('ciphertext');",
                   "});",
-                  "if (json.secret && json.secret.id) {",
-                  "    pm.collectionVariables.set('secretIdPassword', json.secret.id);",
+                  "if (json.credential && json.credential.id) {",
+                  "    pm.collectionVariables.set('credentialIdPassword', json.credential.id);",
                   "}"
                 ]
               }
@@ -156,7 +156,7 @@
               "raw": "{\n  \"type\": \"api_key\",\n  \"name\": \"Stripe live\",\n  \"service\": \"Stripe\",\n  \"payload\": { \"key\": \"sk_live_demo_123\" }\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": "{{baseUrl}}/api/secrets"
+            "url": "{{baseUrl}}/api/credentials"
           },
           "event": [
             {
@@ -167,10 +167,10 @@
                   "const json = pm.response.json();",
                   "pm.test('Status 201 api_key', function () {",
                   "    pm.response.to.have.status(201);",
-                  "    pm.expect(json.secret.type).to.eql('api_key');",
+                  "    pm.expect(json.credential.type).to.eql('api_key');",
                   "});",
-                  "if (json.secret && json.secret.id) {",
-                  "    pm.collectionVariables.set('secretIdApiKey', json.secret.id);",
+                  "if (json.credential && json.credential.id) {",
+                  "    pm.collectionVariables.set('credentialIdApiKey', json.credential.id);",
                   "}"
                 ]
               }
@@ -187,7 +187,7 @@
               "raw": "{\n  \"type\": \"token\",\n  \"name\": \"GitHub PAT\",\n  \"service\": \"GitHub\",\n  \"payload\": { \"token\": \"ghp_exampleToken\" }\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": "{{baseUrl}}/api/secrets"
+            "url": "{{baseUrl}}/api/credentials"
           },
           "event": [
             {
@@ -198,10 +198,10 @@
                   "const json = pm.response.json();",
                   "pm.test('Status 201 token', function () {",
                   "    pm.response.to.have.status(201);",
-                  "    pm.expect(json.secret.type).to.eql('token');",
+                  "    pm.expect(json.credential.type).to.eql('token');",
                   "});",
-                  "if (json.secret && json.secret.id) {",
-                  "    pm.collectionVariables.set('secretIdToken', json.secret.id);",
+                  "if (json.credential && json.credential.id) {",
+                  "    pm.collectionVariables.set('credentialIdToken', json.credential.id);",
                   "}"
                 ]
               }
@@ -218,7 +218,7 @@
               "raw": "{\n  \"type\": \"note\",\n  \"name\": \"WiFi oficina\",\n  \"payload\": { \"text\": \"SSID: HQ / clave: secret\" }\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": "{{baseUrl}}/api/secrets"
+            "url": "{{baseUrl}}/api/credentials"
           },
           "event": [
             {
@@ -229,10 +229,10 @@
                   "const json = pm.response.json();",
                   "pm.test('Status 201 note', function () {",
                   "    pm.response.to.have.status(201);",
-                  "    pm.expect(json.secret.type).to.eql('note');",
+                  "    pm.expect(json.credential.type).to.eql('note');",
                   "});",
-                  "if (json.secret && json.secret.id) {",
-                  "    pm.collectionVariables.set('secretIdNote', json.secret.id);",
+                  "if (json.credential && json.credential.id) {",
+                  "    pm.collectionVariables.set('credentialIdNote', json.credential.id);",
                   "}"
                 ]
               }
@@ -249,7 +249,7 @@
               "raw": "{\n  \"type\": \"password\",\n  \"payload\": { \"password\": \"x\" }\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": "{{baseUrl}}/api/secrets"
+            "url": "{{baseUrl}}/api/credentials"
           },
           "event": [
             {
@@ -276,7 +276,7 @@
               "raw": "{\n  \"type\": \"bitcoin\",\n  \"name\": \"no\",\n  \"payload\": { \"password\": \"x\" }\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": "{{baseUrl}}/api/secrets"
+            "url": "{{baseUrl}}/api/credentials"
           },
           "event": [
             {
@@ -303,7 +303,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/secrets"
+            "url": "{{baseUrl}}/api/credentials"
           },
           "event": [
             {
@@ -315,7 +315,7 @@
                   "pm.test('Status 200 sin plaintext', function () {",
                   "    pm.response.to.have.status(200);",
                   "    pm.expect(json.count).to.be.at.least(4);",
-                  "    json.secrets.forEach(function (item) {",
+                  "    json.credentials.forEach(function (item) {",
                   "        pm.expect(item).to.have.property('id');",
                   "        pm.expect(item).to.not.have.property('payload');",
                   "        pm.expect(item).to.not.have.property('ciphertext');",
@@ -332,7 +332,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/secrets?type=password"
+            "url": "{{baseUrl}}/api/credentials?type=password"
           },
           "event": [
             {
@@ -343,7 +343,7 @@
                   "pm.test('Solo passwords', function () {",
                   "    pm.response.to.have.status(200);",
                   "    const json = pm.response.json();",
-                  "    json.secrets.forEach(function (item) {",
+                  "    json.credentials.forEach(function (item) {",
                   "        pm.expect(item.type).to.eql('password');",
                   "    });",
                   "});"
@@ -357,7 +357,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/secrets/{{secretIdPassword}}"
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}"
           },
           "event": [
             {
@@ -368,8 +368,8 @@
                   "const json = pm.response.json();",
                   "pm.test('Metadatos sin payload', function () {",
                   "    pm.response.to.have.status(200);",
-                  "    pm.expect(json.secret.id).to.eql(pm.collectionVariables.get('secretIdPassword'));",
-                  "    pm.expect(json.secret).to.not.have.property('payload');",
+                  "    pm.expect(json.credential.id).to.eql(pm.collectionVariables.get('credentialIdPassword'));",
+                  "    pm.expect(json.credential).to.not.have.property('payload');",
                   "});"
                 ]
               }
@@ -381,7 +381,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/secrets/00000000-0000-4000-8000-000000000000"
+            "url": "{{baseUrl}}/api/credentials/00000000-0000-4000-8000-000000000000"
           },
           "event": [
             {
@@ -391,7 +391,7 @@
                 "exec": [
                   "pm.test('Status 404', function () {",
                   "    pm.response.to.have.status(404);",
-                  "    pm.expect(pm.response.json().error).to.eql('Secreto no encontrado');",
+                  "    pm.expect(pm.response.json().error).to.eql('Credencial no encontrada');",
                   "});"
                 ]
               }
@@ -408,7 +408,7 @@
           "request": {
             "method": "POST",
             "header": [],
-            "url": "{{baseUrl}}/api/secrets/{{secretIdPassword}}/reveal"
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/reveal"
           },
           "event": [
             {
@@ -432,7 +432,7 @@
           "request": {
             "method": "POST",
             "header": [],
-            "url": "{{baseUrl}}/api/secrets/{{secretIdApiKey}}/reveal"
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdApiKey}}/reveal"
           },
           "event": [
             {
@@ -464,7 +464,7 @@
               "raw": "{\n  \"password\": \"{{password}}\",\n  \"username\": \"{{username}}\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": "{{baseUrl}}/api/secrets/{{secretIdPassword}}/verify"
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/verify"
           },
           "event": [
             {
@@ -493,7 +493,7 @@
               "raw": "{\n  \"password\": \"{{wrongPassword}}\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": "{{baseUrl}}/api/secrets/{{secretIdPassword}}/verify"
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/verify"
           },
           "event": [
             {
@@ -520,7 +520,7 @@
               "raw": "{\n  \"password\": \"x\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": "{{baseUrl}}/api/secrets/{{secretIdApiKey}}/verify"
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdApiKey}}/verify"
           },
           "event": [
             {
@@ -530,7 +530,7 @@
                 "exec": [
                   "pm.test('Solo passwords', function () {",
                   "    pm.response.to.have.status(400);",
-                  "    pm.expect(pm.response.json().error).to.eql('verify solo aplica a secretos de tipo password');",
+                  "    pm.expect(pm.response.json().error).to.eql('verify solo aplica a credenciales de tipo password');",
                   "});"
                 ]
               }
@@ -547,7 +547,7 @@
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": "{{baseUrl}}/api/secrets/{{secretIdNote}}"
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdNote}}"
           },
           "event": [
             {
@@ -557,7 +557,7 @@
                 "exec": [
                   "pm.test('Eliminado', function () {",
                   "    pm.response.to.have.status(200);",
-                  "    pm.expect(pm.response.json().message).to.eql('Secreto eliminado');",
+                  "    pm.expect(pm.response.json().message).to.eql('Credencial eliminada');",
                   "});"
                 ]
               }
@@ -569,7 +569,7 @@
           "request": {
             "method": "POST",
             "header": [],
-            "url": "{{baseUrl}}/api/secrets/{{secretIdNote}}/reveal"
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdNote}}/reveal"
           },
           "event": [
             {

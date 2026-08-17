@@ -36,7 +36,7 @@ function loadEnvFile(filePath = ENV_FILE) {
   }
 }
 
-function validateSecretsConfig() {
+function validateEnvConfig() {
   const encryptionKey = process.env.ENCRYPTION_KEY;
   const apiKey = process.env.API_KEY;
   const errors = [];
@@ -67,7 +67,7 @@ function validateSecretsConfig() {
 
 function loadAndValidate() {
   loadEnvFile();
-  validateSecretsConfig();
+  validateEnvConfig();
 }
 
 module.exports = {
