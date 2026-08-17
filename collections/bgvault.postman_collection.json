@@ -1,0 +1,591 @@
+{
+  "info": {
+    "_postman_id": "c8d5f0b2-6e3a-4d9c-8b42-1f7e3c9d2a85",
+    "name": "Crypto AES-256-GCM Vault",
+    "description": "Crypto AES-256-GCM Vault — passwords, API keys, tokens y notas.\n\nAuth de la collection: header `X-API-Key: {{apiKey}}`.\n\n1. `npm run setup-env` y `npm run server`\n2. Esta collection → pestaña **Variables** → `apiKey` (Current value) = `bgvault-dev-api-key-local` (la misma de `.env`)\n3. Runner → **Run collection** (en orden)\n\nHealth es público. Los requests 401 de Auth no usan esta key a propósito.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "in", "value": "header" },
+      { "key": "key", "value": "X-API-Key" },
+      { "key": "value", "value": "{{apiKey}}" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "apiKey", "value": "bgvault-dev-api-key-local" },
+    { "key": "password", "value": "miContraseña123!" },
+    { "key": "username", "value": "usuario@example.com" },
+    { "key": "wrongPassword", "value": "clave-incorrecta" },
+    { "key": "secretIdPassword", "value": "" },
+    { "key": "secretIdApiKey", "value": "" },
+    { "key": "secretIdToken", "value": "" },
+    { "key": "secretIdNote", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 y OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql('OK');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "401 — sin API key",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/secrets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "    pm.expect(pm.response.json().error).to.eql('No autorizado');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "401 — API key inválida",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "clave-falsa" }
+            ],
+            "url": "{{baseUrl}}/api/secrets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "    pm.expect(pm.response.json().error).to.eql('No autorizado');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Create",
+      "item": [
+        {
+          "name": "Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"password\",\n  \"name\": \"Gmail personal\",\n  \"service\": \"Gmail\",\n  \"tags\": [\"email\"],\n  \"payload\": {\n    \"password\": \"{{password}}\",\n    \"username\": \"{{username}}\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/secrets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Status 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(json.secret.type).to.eql('password');",
+                  "    pm.expect(json.secret).to.have.property('id');",
+                  "    pm.expect(json.secret).to.not.have.property('payload');",
+                  "    pm.expect(json.secret).to.not.have.property('ciphertext');",
+                  "});",
+                  "if (json.secret && json.secret.id) {",
+                  "    pm.collectionVariables.set('secretIdPassword', json.secret.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "API key",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"api_key\",\n  \"name\": \"Stripe live\",\n  \"service\": \"Stripe\",\n  \"payload\": { \"key\": \"sk_live_demo_123\" }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/secrets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Status 201 api_key', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(json.secret.type).to.eql('api_key');",
+                  "});",
+                  "if (json.secret && json.secret.id) {",
+                  "    pm.collectionVariables.set('secretIdApiKey', json.secret.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"token\",\n  \"name\": \"GitHub PAT\",\n  \"service\": \"GitHub\",\n  \"payload\": { \"token\": \"ghp_exampleToken\" }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/secrets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Status 201 token', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(json.secret.type).to.eql('token');",
+                  "});",
+                  "if (json.secret && json.secret.id) {",
+                  "    pm.collectionVariables.set('secretIdToken', json.secret.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Note",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"note\",\n  \"name\": \"WiFi oficina\",\n  \"payload\": { \"text\": \"SSID: HQ / clave: secret\" }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/secrets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Status 201 note', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(json.secret.type).to.eql('note');",
+                  "});",
+                  "if (json.secret && json.secret.id) {",
+                  "    pm.collectionVariables.set('secretIdNote', json.secret.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — falta name",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"password\",\n  \"payload\": { \"password\": \"x\" }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/secrets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().error).to.eql('name es requerido');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — type inválido",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"bitcoin\",\n  \"name\": \"no\",\n  \"payload\": { \"password\": \"x\" }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/secrets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 type', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().error).to.include('type debe ser uno de');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Get",
+      "item": [
+        {
+          "name": "Listar (solo metadatos)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/secrets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Status 200 sin plaintext', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.count).to.be.at.least(4);",
+                  "    json.secrets.forEach(function (item) {",
+                  "        pm.expect(item).to.have.property('id');",
+                  "        pm.expect(item).to.not.have.property('payload');",
+                  "        pm.expect(item).to.not.have.property('ciphertext');",
+                  "        pm.expect(item).to.not.have.property('password');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar por type=password",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/secrets?type=password"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Solo passwords', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const json = pm.response.json();",
+                  "    json.secrets.forEach(function (item) {",
+                  "        pm.expect(item.type).to.eql('password');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Obtener por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/secrets/{{secretIdPassword}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Metadatos sin payload', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.secret.id).to.eql(pm.collectionVariables.get('secretIdPassword'));",
+                  "    pm.expect(json.secret).to.not.have.property('payload');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 404 — id inexistente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/secrets/00000000-0000-4000-8000-000000000000"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    pm.expect(pm.response.json().error).to.eql('Secreto no encontrado');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reveal",
+      "item": [
+        {
+          "name": "Revelar password",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/secrets/{{secretIdPassword}}/reveal"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Payload desencriptado', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.payload.password).to.eql(pm.collectionVariables.get('password'));",
+                  "    pm.expect(json.payload.username).to.eql(pm.collectionVariables.get('username'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revelar api_key",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/secrets/{{secretIdApiKey}}/reveal"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('API key revelada', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().payload.key).to.eql('sk_live_demo_123');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Verify",
+      "item": [
+        {
+          "name": "Password correcta",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"{{password}}\",\n  \"username\": \"{{username}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/secrets/{{secretIdPassword}}/verify"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Válida', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.isValid).to.eql(true);",
+                  "    pm.expect(json.verified).to.eql({ password: true, username: true });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Password incorrecta",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"{{wrongPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/secrets/{{secretIdPassword}}/verify"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Inválida', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().isValid).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — verify sobre api_key",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"x\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/secrets/{{secretIdApiKey}}/verify"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Solo passwords', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().error).to.eql('verify solo aplica a secretos de tipo password');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Delete",
+      "item": [
+        {
+          "name": "Eliminar note",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/secrets/{{secretIdNote}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Eliminado', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().message).to.eql('Secreto eliminado');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revelar note eliminada — 404",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/secrets/{{secretIdNote}}/reveal"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
