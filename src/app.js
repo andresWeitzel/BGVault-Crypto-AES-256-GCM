@@ -22,6 +22,26 @@ function createApp() {
   app.use(express.json({ limit: '32kb' }));
   app.use('/api', createIpRateLimit());
 
+  app.get('/', (req, res) => {
+    return sendOk(res, 200, {
+      name: 'BGVault',
+      status: 'OK',
+      health: '/health',
+      auth: {
+        register: 'POST /api/auth/register',
+        login: 'POST /api/auth/login',
+        me: 'GET /api/auth/me',
+        logout: 'POST /api/auth/logout',
+      },
+      vault: {
+        generate: 'POST /api/generate',
+        credentials: 'GET|POST /api/credentials',
+        reveal: 'POST /api/credentials/:id/reveal',
+      },
+      docs: 'https://github.com/andresWeitzel/BGVault-Crypto-AES-256-GCM',
+    });
+  });
+
   app.get('/health', (req, res) => {
     return sendOk(res, 200, {
       status: 'OK',

@@ -67,6 +67,14 @@ test('health incluye requestId y auth jwt', async () => {
   assert.equal(headers.get('x-request-id'), json.requestId);
 });
 
+test('GET / describe la API sin exigir auth', async () => {
+  const { status, json } = await req('GET', '/');
+  assert.equal(status, 200);
+  assert.equal(json.name, 'BGVault');
+  assert.equal(json.health, '/health');
+  assert.equal(json.auth.register, 'POST /api/auth/register');
+});
+
 test('sin Bearer responde UNAUTHORIZED', async () => {
   const { status, json } = await req('GET', '/api/credentials');
   assert.equal(status, 401);

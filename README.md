@@ -223,7 +223,7 @@ Si alguien se pasa del tope por IP: **429** `RATE_LIMITED` (`Demasiadas solicitu
 
 ## 🔑 Autenticación
 
-`GET /health` es público. `POST /api/auth/register` y `POST /api/auth/login` también (emiten el token).
+`GET /` y `GET /health` son públicos. `POST /api/auth/register` y `POST /api/auth/login` también (emiten el token).
 
 Todas las rutas `/api/credentials*`, `/api/audit*`, `POST /api/generate`, `GET /api/auth/me` y `POST /api/auth/logout` exigen:
 
@@ -289,6 +289,11 @@ http://localhost:3000
 ### 1. Health Check
 
 Verifica que el proceso esté vivo. No requiere auth.
+
+**GET** `/` — índice de la API (navegador).  
+**GET** `/health` — healthcheck de Render.
+
+**GET /** **Respuesta 200:** nombre, `health`, rutas de auth/vault y link al repo. Sin `payload`.
 
 **GET** `/health`
 
@@ -1029,7 +1034,7 @@ Lista eventos de register, login, logout, generate, create, get, patch, reveal, 
 
 | Código | Significado |
 |--------|-------------|
-| 200 | Login, me, logout, generate, listar, get, patch, versions, reveal, verify, rotate, delete, audit |
+| 200 | Raíz, health, login, me, logout, generate, listar, get, patch, versions, reveal, verify, rotate, delete, audit |
 | 201 | Usuario o credencial creados |
 | 400 | Validación (email, password de cuenta, tipo, name, payload, expiresAt, maxReveals, verify sobre no-password) |
 | 401 | JWT ausente, inválido, expirado; o login con credenciales incorrectas |
