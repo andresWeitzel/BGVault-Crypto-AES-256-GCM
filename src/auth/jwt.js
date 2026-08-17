@@ -29,7 +29,12 @@ function sign(payload) {
   const expiresIn = getExpiresIn();
   const iat = Math.floor(Date.now() / 1000);
   const header = { alg: 'HS256', typ: 'JWT' };
-  const body = { ...payload, iat, exp: iat + expiresIn };
+  const body = {
+    ...payload,
+    jti: crypto.randomUUID(),
+    iat,
+    exp: iat + expiresIn,
+  };
   const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url');
   const payloadB64 = Buffer.from(JSON.stringify(body)).toString('base64url');
   const signature = crypto
@@ -67,6 +72,7 @@ function verify(token) {
   }
 
   if (!payload.sub || typeof payload.sub !== 'string') return null;
+  if (!payload.jti || typeof payload.jti !== 'string') return null;
   if (!Number.isInteger(payload.exp) || payload.exp < Math.floor(Date.now() / 1000)) {
     return null;
   }

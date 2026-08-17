@@ -17,12 +17,12 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **Persistencia SQLite**: las credenciales y versiones sobreviven al reinicio (`node:sqlite`, sin ORM)
 - ✅ **TTL y one-time reveal**: `expiresAt` y `maxReveals` por versión; reveal/verify vencidos o agotados responden **410** sin desencriptar
 - ✅ **Versionado y rotación**: cada cambio de payload crea una versión nueva; la anterior sigue revelable
-- ✅ **Auditoría**: generate, create, get, patch, reveal, verify, rotate, delete y versions quedan en `audit_events` (sin plaintext)
+- ✅ **Auditoría**: generate, create, get, patch, reveal, verify, rotate, delete, versions, register, login y logout quedan en `audit_events` (sin plaintext)
 - ✅ **IDs UUID**: se abandonó el `index` numérico; cada credencial tiene identidad estable
 - ✅ **Metadatos en claro, payload cifrado**: `name`, `service` y `tags` se pueden filtrar y **editar con PATCH**; la clave/contraseña no aparece en GET
 - ✅ **Listados paginados**: `GET /api/credentials` y `GET /api/audit` usan `limit` (máx. 200) y `offset`
 - ✅ **Rotación de KEK**: `ENCRYPTION_KEY_NEXT` + `npm run rewrap-keys` reenvuelve `wrapped_dek` sin tocar el payload
-- ✅ **Autenticación JWT**: `POST /api/auth/register` y `/login` emiten un Bearer HS256 (HMAC nativo); el hash de la cuenta es **scrypt**, no bcrypt
+- ✅ **Autenticación JWT**: register/login emiten un Bearer HS256 con `jti`; `POST /api/auth/logout` lo revoca hasta `exp`
 - ✅ **Aislamiento por usuario**: cada credencial y cada evento de auditoría pertenece a un `user_id`; un JWT ajeno recibe 404, no 403
 - ✅ **Sobre JSON uniforme**: éxitos llevan `requestId` + `timestamp`; errores son `{ error: { code, message }, requestId, timestamp }`
 - ✅ **Rate limit**: tope en register/login y en reveal/verify (`X-RateLimit-*`, **429** `RATE_LIMITED`)
@@ -122,7 +122,7 @@ El vault queda en `http://localhost:3000` (o el `PORT` configurado). En consola:
 
 ```
 BGVault corriendo en http://localhost:3000
-Auth: JWT Bearer (POST /api/auth/register o /api/auth/login)
+Auth: JWT Bearer (POST /api/auth/register, /login; POST /api/auth/logout)
 ```
 
 ### Scripts disponibles
@@ -135,20 +135,21 @@ Auth: JWT Bearer (POST /api/auth/register o /api/auth/login)
 | `npm run client:get` | Lista credenciales del usuario demo (solo metadatos) |
 | `npm run decrypt-env` | Muestra variables `*_ENCRYPTED` del `.env`, si existen |
 | `npm run rewrap-keys` | Reenvuelve `wrapped_dek` con `ENCRYPTION_KEY_NEXT` (no toca el payload) |
+| `npm test` | Tests nativos (`node --test`): auth, logout/`jti`, aislamiento, PATCH, paginación, 410 |
 
 ## 🔑 Autenticación
 
 `GET /health` es público. `POST /api/auth/register` y `POST /api/auth/login` también (emiten el token).
 
-Todas las rutas `/api/credentials*`, `/api/audit*`, `POST /api/generate` y `GET /api/auth/me` exigen:
+Todas las rutas `/api/credentials*`, `/api/audit*`, `POST /api/generate`, `GET /api/auth/me` y `POST /api/auth/logout` exigen:
 
 ```
 Authorization: Bearer <accessToken>
 ```
 
-Sin header, con un token inválido, expirado o de un usuario borrado: **401** `UNAUTHORIZED`.
+Sin header, con un token inválido, expirado, sin `jti` o de un usuario borrado: **401** `UNAUTHORIZED`. Tras logout, el mismo token responde **401** `TOKEN_REVOKED`.
 
-El JWT es **HS256** firmado con `JWT_SECRET` (`node:crypto.createHmac`). La contraseña de la cuenta se guarda con **scrypt** (`N=16384, r=8, p=1`); nunca viaja de vuelta en JSON. Un login fallido responde **401** `INVALID_CREDENTIALS` (no dice si el email existe).
+El JWT es **HS256** firmado con `JWT_SECRET` (`node:crypto.createHmac`) y lleva `jti`. La contraseña de la cuenta se guarda con **scrypt** (`N=16384, r=8, p=1`); nunca viaja de vuelta en JSON. Un login fallido responde **401** `INVALID_CREDENTIALS` (no dice si el email existe).
 
 Un usuario **no ve** las credenciales de otro: list, get, patch, reveal, rotate y audit filtran por `user_id`. Si el id existe pero es de otro dueño, la API responde **404** (no 403), para no filtrar existencia.
 
@@ -175,7 +176,8 @@ Toda respuesta JSON incluye `timestamp` y `requestId` (también en el header `X-
 |--------|--------|--------|
 | `VALIDATION` | 400 | Body o query inválido |
 | `JSON_INVALID` | 400 | JSON mal formado |
-| `UNAUTHORIZED` | 401 | JWT ausente, inválido o usuario borrado |
+| `UNAUTHORIZED` | 401 | JWT ausente, inválido, sin `jti` o usuario borrado |
+| `TOKEN_REVOKED` | 401 | Logout: el `jti` está en `revoked_tokens` |
 | `INVALID_CREDENTIALS` | 401 | Login con email/password incorrectos |
 | `CREDENTIAL_NOT_FOUND` | 404 | Credencial inexistente o de otro usuario |
 | `VERSION_NOT_FOUND` | 404 | Número de versión inexistente |
@@ -300,7 +302,27 @@ Mismo body que register. Respuesta idéntica salvo `message`: `"Sesión iniciada
 
 ---
 
-### 5. Generar secreto
+### 5. Cerrar sesión (logout)
+
+Invalida el JWT actual. Cada token lleva un `jti` (UUID); al cerrar sesión se guarda en `revoked_tokens` hasta que expire. Un login nuevo emite **otro** `jti`.
+
+**POST** `/api/auth/logout`  
+**Auth:** Bearer JWT  
+Body: no hace falta.
+
+**Respuesta 200:**
+```json
+{
+  "message": "Sesión cerrada",
+  "timestamp": "2026-08-16T01:35:56.264Z"
+}
+```
+
+Usos posteriores del mismo token: **401** `TOKEN_REVOKED`. Un token sin `jti` (legado) o con firma inválida sigue siendo **401** `UNAUTHORIZED`.
+
+---
+
+### 6. Generar secreto
 
 Arma un valor aleatorio con `crypto.randomInt` (CSPRNG). **No lo guarda**: copialo al `payload` de create/rotate si querés persistirlo.
 
@@ -320,6 +342,16 @@ Arma un valor aleatorio con `crypto.randomInt` (CSPRNG). **No lo guarda**: copia
 }
 ```
 
+Body mínimo por kind (el resto usa defaults: password 20 con símbolos; `api_key` 32 y `token` 48 **sin** símbolos):
+
+```json
+{ "kind": "api_key" }
+```
+
+```json
+{ "kind": "token" }
+```
+
 | Campo | Default | Notas |
 |-------|---------|-------|
 | `kind` | `password` | `password` \| `api_key` \| `token` (`note` no aplica) |
@@ -333,7 +365,7 @@ Arma un valor aleatorio con `crypto.randomInt` (CSPRNG). **No lo guarda**: copia
 {
   "kind": "password",
   "length": 24,
-  "value": "k7#mP9qR2wX!",
+  "value": "wK7#mP9qR2xHvNt8s@BdYf3a",
   "options": {
     "uppercase": true,
     "lowercase": true,
@@ -341,6 +373,7 @@ Arma un valor aleatorio con `crypto.randomInt` (CSPRNG). **No lo guarda**: copia
     "symbols": true,
     "excludeAmbiguous": true
   },
+  "requestId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
@@ -349,7 +382,7 @@ Garantiza al menos un carácter de cada juego activo. **400** si `kind` es invá
 
 ---
 
-### 6. Crear credencial
+### 7. Crear credencial
 
 Cifra el `payload` con **envelope encryption**: DEK aleatoria AES-256-GCM (AAD = `credential:<id>:<type>:<version>`) y wrap de esa DEK con `ENCRYPTION_KEY` (AAD = `dek:<id>:<version>`). Guarda el registro como **versión 1**.
 
@@ -366,6 +399,21 @@ Cifra el `payload` con **envelope encryption**: DEK aleatoria AES-256-GCM (AAD =
   "tags": ["email"],
   "payload": {
     "password": "miContraseña123",
+    "username": "usuario@example.com"
+  }
+}
+```
+
+TTL / un solo uso (opcionales, a nivel **versión**, no dentro de `payload`):
+
+```json
+{
+  "type": "password",
+  "name": "OTP",
+  "maxReveals": 1,
+  "expiresAt": "2027-12-31T00:00:00.000Z",
+  "payload": {
+    "password": "once",
     "username": "usuario@example.com"
   }
 }
@@ -389,10 +437,12 @@ Omitidos: sin caducidad y revelaciones ilimitadas. `null` en rotate limpia el va
 
 | type | Campo requerido | Campos opcionales |
 |------|-----------------|-------------------|
-| `password` | `payload.password` | `payload.username` |
-| `api_key` | `payload.key` | — |
-| `token` | `payload.token` | `payload.expiresAt`, etc. |
-| `note` | `payload.text` | — |
+| `password` | `payload.password` | `payload.username` (y extras libres) |
+| `api_key` | `payload.key` | extras libres |
+| `token` | `payload.token` | extras libres (`payload.expiresAt`, etc.); **no** es el `expiresAt` de la **versión** |
+| `note` | `payload.text` | extras libres |
+
+Las claves extra se cifran enteras con el blob. Solo fallan las requeridas de la tabla.
 
 **Respuesta 201:**
 ```json
@@ -405,6 +455,7 @@ Omitidos: sin caducidad y revelaciones ilimitadas. `null` en rotate limpia el va
     "service": "Gmail",
     "tags": ["email"],
     "currentVersion": 1,
+    "version": 1,
     "expiresAt": null,
     "maxReveals": null,
     "revealCount": 0,
@@ -436,7 +487,7 @@ La respuesta **nunca** incluye `payload` ni ciphertext.
 
 ---
 
-### 7. Listar credenciales
+### 8. Listar credenciales
 
 Devuelve solo metadatos. Se puede filtrar.
 
@@ -465,6 +516,13 @@ Devuelve solo metadatos. Se puede filtrar.
       "name": "Gmail personal",
       "service": "Gmail",
       "tags": ["email"],
+      "currentVersion": 1,
+      "version": 1,
+      "expiresAt": null,
+      "maxReveals": null,
+      "revealCount": 0,
+      "revealsRemaining": null,
+      "expired": false,
       "createdAt": "2026-08-16T01:35:56.264Z",
       "updatedAt": "2026-08-16T01:35:56.264Z"
     }
@@ -483,7 +541,7 @@ Otros tipos de ejemplo para crear:
   "type": "api_key",
   "name": "Stripe live",
   "service": "Stripe",
-  "payload": { "key": "sk_live_..." }
+  "payload": { "key": "sk_live_demo_not_a_real_key" }
 }
 ```
 
@@ -492,9 +550,14 @@ Otros tipos de ejemplo para crear:
   "type": "token",
   "name": "GitHub PAT",
   "service": "GitHub",
-  "payload": { "token": "ghp_..." }
+  "payload": {
+    "token": "ghp_demoReplaceMeNotARealPat",
+    "expiresAt": "2028-01-01T00:00:00.000Z"
+  }
 }
 ```
+
+`payload.expiresAt` queda cifrado con el token. El TTL que dispara **410** es el `expiresAt` de primer nivel (junto a `name` / `maxReveals`).
 
 ```json
 {
@@ -506,12 +569,35 @@ Otros tipos de ejemplo para crear:
 
 ---
 
-### 8. Obtener metadatos por id
+### 9. Obtener metadatos por id
 
 **GET** `/api/credentials/:id`  
 **Auth:** requerida
 
-**Respuesta 200:** mismo objeto `credential` (sin payload).
+**Respuesta 200:**
+```json
+{
+  "credential": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "type": "password",
+    "name": "Gmail personal",
+    "service": "Gmail",
+    "tags": ["email"],
+    "currentVersion": 1,
+    "version": 1,
+    "expiresAt": null,
+    "maxReveals": null,
+    "revealCount": 0,
+    "revealsRemaining": null,
+    "expired": false,
+    "createdAt": "2026-08-16T01:35:56.264Z",
+    "updatedAt": "2026-08-16T01:35:56.264Z"
+  },
+  "timestamp": "2026-08-16T01:35:56.264Z"
+}
+```
+
+No incluye `payload` ni ciphertext.
 
 **Respuesta 404:**
 ```json
@@ -524,7 +610,7 @@ Otros tipos de ejemplo para crear:
 
 ---
 
-### 9. Editar metadatos (PATCH)
+### 10. Editar metadatos (PATCH)
 
 Cambia `name`, `service` o `tags` **sin** rotar el payload ni incrementar la versión. `type`, `expiresAt` y `maxReveals` no se editan acá: el tipo es inmutable y el ciclo de vida se hereda o se cambia en **rotate**.
 
@@ -552,7 +638,15 @@ Cambia `name`, `service` o `tags` **sin** rotar el payload ni incrementar la ver
     "name": "Gmail trabajo",
     "service": "Google Workspace",
     "tags": ["email", "trabajo"],
-    "currentVersion": 1
+    "currentVersion": 1,
+    "version": 1,
+    "expiresAt": null,
+    "maxReveals": null,
+    "revealCount": 0,
+    "revealsRemaining": null,
+    "expired": false,
+    "createdAt": "2026-08-16T01:35:56.264Z",
+    "updatedAt": "2026-08-16T01:40:00.000Z"
   },
   "timestamp": "2026-08-16T01:40:00.000Z"
 }
@@ -570,7 +664,7 @@ La respuesta **nunca** incluye `payload` ni ciphertext. La versión no cambia.
 
 ---
 
-### 10. Revelar credencial (POST)
+### 11. Revelar credencial (POST)
 
 Desencripta el payload y lo devuelve. Es **POST** a propósito: el valor no queda en access logs de query string.
 
@@ -586,10 +680,16 @@ Body: no hace falta.
     "type": "password",
     "name": "Gmail personal",
     "service": "Gmail",
+    "tags": ["email"],
+    "currentVersion": 1,
+    "version": 1,
     "expiresAt": null,
     "maxReveals": null,
+    "revealCount": 1,
     "revealsRemaining": null,
-    "version": 1
+    "expired": false,
+    "createdAt": "2026-08-16T01:35:56.264Z",
+    "updatedAt": "2026-08-16T01:35:56.264Z"
   },
   "payload": {
     "password": "miContraseña123",
@@ -608,7 +708,7 @@ GET/list de una versión quemada o vencida siguen devolviendo metadatos (`expire
 
 ---
 
-### 11. Verificar una contraseña
+### 12. Verificar una contraseña
 
 Compara un candidato contra el payload almacenado. **Solo aplica a `type=password`**.
 
@@ -623,7 +723,7 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 }
 ```
 
-`username` es opcional: si lo mandás, también se verifica. Verify **consume** un uso de `maxReveals` (desencripta el payload).
+`username` es opcional: si lo mandás, también se verifica. El body va **en la raíz** (`password`, `username?`, `version?`), **no** anidado en `payload`. Verify **consume** un uso de `maxReveals` (desencripta el payload).
 
 **Respuesta 200 (válida):**
 ```json
@@ -631,7 +731,18 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
   "credential": {
     "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
     "type": "password",
-    "version": 1
+    "name": "Gmail personal",
+    "service": "Gmail",
+    "tags": ["email"],
+    "currentVersion": 1,
+    "version": 1,
+    "expiresAt": null,
+    "maxReveals": null,
+    "revealCount": 1,
+    "revealsRemaining": null,
+    "expired": false,
+    "createdAt": "2026-08-16T01:35:56.264Z",
+    "updatedAt": "2026-08-16T01:35:56.264Z"
   },
   "isValid": true,
   "verified": {
@@ -657,7 +768,7 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 
 ---
 
-### 12. Eliminar credencial
+### 13. Eliminar credencial
 
 **DELETE** `/api/credentials/:id`  
 **Auth:** requerida
@@ -675,14 +786,15 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 
 ---
 
-### 13. Rotar credencial (nueva versión)
+### 14. Rotar credencial (nueva versión)
 
 Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones anteriores. El tipo no cambia. `expiresAt` y `maxReveals` de la versión nueva se **heredan** de la actual salvo que los mandes (o `null` para ilimitado). `revealCount` de la versión nueva arranca en 0.
 
 **POST** `/api/credentials/:id/rotate`  
 **Auth:** requerida
 
-**Body:**
+**Body:** el `payload` debe cumplir el **mismo `type`** que ya tiene la credencial (`password` → `payload.password`, `api_key` → `payload.key`, `token` → `payload.token`, `note` → `payload.text`).
+
 ```json
 {
   "payload": {
@@ -691,6 +803,21 @@ Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones
   }
 }
 ```
+
+Opcional: nuevo ciclo de vida de **esta** versión (si omitís los campos, se heredan):
+
+```json
+{
+  "payload": {
+    "password": "nuevaContraseña456!",
+    "username": "usuario@example.com"
+  },
+  "expiresAt": "2027-12-31T00:00:00.000Z",
+  "maxReveals": 3
+}
+```
+
+`expiresAt: null` o `maxReveals: null` limpia el valor heredado (sin caducidad / revelaciones ilimitadas).
 
 **Respuesta 200:**
 ```json
@@ -703,6 +830,12 @@ Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones
     "service": "Gmail",
     "tags": ["email"],
     "currentVersion": 2,
+    "version": 2,
+    "expiresAt": null,
+    "maxReveals": null,
+    "revealCount": 0,
+    "revealsRemaining": null,
+    "expired": false,
     "createdAt": "2026-08-16T01:35:56.264Z",
     "updatedAt": "2026-08-16T01:40:00.000Z"
   },
@@ -714,7 +847,7 @@ Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones
 
 ---
 
-### 14. Listar versiones
+### 15. Listar versiones
 
 Devuelve el historial **sin** ciphertext ni plaintext.
 
@@ -754,7 +887,7 @@ Devuelve el historial **sin** ciphertext ni plaintext.
 
 ---
 
-### 15. Revelar una versión concreta
+### 16. Revelar una versión concreta
 
 El reveal usa la versión actual si no mandás `version`. El número de versión va en el **body**, no en la URL.
 
@@ -773,9 +906,9 @@ Verify también acepta `"version": 1` opcional (por defecto, la actual).
 
 ---
 
-### 16. Auditoría
+### 17. Auditoría
 
-Lista eventos de register, login, generate, create, get, patch, reveal, verify, rotate, delete y versions **del usuario autenticado**. **Nunca** guarda plaintext, ciphertext ni DEKs.
+Lista eventos de register, login, logout, generate, create, get, patch, reveal, verify, rotate, delete y versions **del usuario autenticado**. **Nunca** guarda plaintext, ciphertext ni DEKs.
 
 **GET** `/api/audit`  
 **GET** `/api/audit?action=rotate`  
@@ -812,7 +945,7 @@ Lista eventos de register, login, generate, create, get, patch, reveal, verify, 
 
 | Código | Significado |
 |--------|-------------|
-| 200 | Login, me, generate, listar, get, patch, versions, reveal, verify, rotate, delete, audit |
+| 200 | Login, me, logout, generate, listar, get, patch, versions, reveal, verify, rotate, delete, audit |
 | 201 | Usuario o credencial creados |
 | 400 | Validación (email, password de cuenta, tipo, name, payload, expiresAt, maxReveals, verify sobre no-password) |
 | 401 | JWT ausente, inválido, expirado; o login con credenciales incorrectas |
@@ -823,7 +956,7 @@ Lista eventos de register, login, generate, create, get, patch, reveal, verify, 
 
 ## 🧪 Collection de Postman
 
-La collection **Crypto AES-256-GCM Vault** cubre el contrato con `pm.test` en cada request: Health (+ `X-Request-Id`), Auth (401/400/409), Generate, Create, list/paginación, PATCH de metadatos, aislamiento, Reveal, Lifecycle (one-time `REVEAL_LIMIT` y TTL `CREDENTIAL_EXPIRED`), verify, rotación, auditoría paginada y delete.
+La collection **Crypto AES-256-GCM Vault** cubre el contrato con `pm.test` en cada request: Health (+ `X-Request-Id`), Auth (401/400/409, logout/`TOKEN_REVOKED`), Generate, Create, list/paginación, PATCH de metadatos, aislamiento, Reveal, Lifecycle (one-time `REVEAL_LIMIT` y TTL `CREDENTIAL_EXPIRED`), verify, rotación, auditoría paginada y delete.
 
 Archivo: `collections/bgvault.postman_collection.json`  
 El `_postman_id` se mantiene fijo para que reimportar **actualice** la collection y no abra otra.
@@ -865,16 +998,28 @@ TOKEN=$(curl -s -X POST "$BASE/api/auth/login" \
 
 AUTH="Authorization: Bearer $TOKEN"
 
+# Perfil
+curl -s "$BASE/api/auth/me" -H "$AUTH"
+
 # Generar password
 curl -s -X POST "$BASE/api/generate" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
   -d '{"kind":"password","length":24}'
 
-# Perfil
-curl -s "$BASE/api/auth/me" -H "$AUTH"
+# Crear password — copiá el `credential.id` de la respuesta para PATCH/reveal/verify/rotate
+curl -s -X POST "$BASE/api/credentials" \
+  -H "Content-Type: application/json" \
+  -H "$AUTH" \
+  -d '{
+    "type": "password",
+    "name": "Gmail personal",
+    "service": "Gmail",
+    "tags": ["email"],
+    "payload": { "password": "miContraseña123", "username": "usuario@example.com" }
+  }'
 
-# Crear API key
+# Crear API key (`payload.key`)
 curl -s -X POST "$BASE/api/credentials" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
@@ -882,7 +1027,18 @@ curl -s -X POST "$BASE/api/credentials" \
     "type": "api_key",
     "name": "Stripe live",
     "service": "Stripe",
-    "payload": { "key": "sk_live_demo" }
+    "payload": { "key": "sk_live_demo_not_a_real_key" }
+  }'
+
+# Crear token (`payload.token`; extras van en el blob, no son el TTL de la versión)
+curl -s -X POST "$BASE/api/credentials" \
+  -H "Content-Type: application/json" \
+  -H "$AUTH" \
+  -d '{
+    "type": "token",
+    "name": "GitHub PAT",
+    "service": "GitHub",
+    "payload": { "token": "ghp_demoReplaceMeNotARealPat", "expiresAt": "2028-01-01T00:00:00.000Z" }
   }'
 
 # Listar (sin plaintext)
@@ -891,17 +1047,17 @@ curl -s "$BASE/api/credentials?limit=50&offset=0" -H "$AUTH"
 # Filtrar
 curl -s "$BASE/api/credentials?type=password" -H "$AUTH"
 
-# Editar metadatos (no toca el payload)
+# Editar metadatos (no toca el payload). Reemplazá <id> por el UUID de la password
 curl -s -X PATCH "$BASE/api/credentials/<id>" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
   -d '{"name":"Gmail trabajo","tags":["email","trabajo"]}'
 
-# Revelar (reemplazá el id)
+# Revelar (reemplazá el id; body vacío = versión actual)
 curl -s -X POST "$BASE/api/credentials/<id>/reveal" \
   -H "$AUTH"
 
-# One-time
+# One-time / TTL (a nivel versión, no dentro de payload)
 curl -s -X POST "$BASE/api/credentials" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
@@ -909,21 +1065,21 @@ curl -s -X POST "$BASE/api/credentials" \
     "type": "password",
     "name": "OTP",
     "maxReveals": 1,
-    "expiresAt": "2026-12-31T00:00:00.000Z",
+    "expiresAt": "2027-12-31T00:00:00.000Z",
     "payload": { "password": "once" }
   }'
 
-# Verificar password
+# Verificar password — solo `type=password`; body plano (no anidar en payload)
 curl -s -X POST "$BASE/api/credentials/<id>/verify" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
-  -d '{ "password": "miContraseña123" }'
+  -d '{ "password": "miContraseña123", "username": "usuario@example.com" }'
 
-# Rotar
+# Rotar — el payload tiene que coincidir con el type de esa credencial
 curl -s -X POST "$BASE/api/credentials/<id>/rotate" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
-  -d '{ "payload": { "password": "nueva", "username": "usuario@example.com" } }'
+  -d '{ "payload": { "password": "nuevaContraseña456!", "username": "usuario@example.com" } }'
 
 # Versiones
 curl -s "$BASE/api/credentials/<id>/versions" -H "$AUTH"
@@ -940,6 +1096,9 @@ curl -s "$BASE/api/audit?action=rotate" -H "$AUTH"
 # Eliminar
 curl -s -X DELETE "$BASE/api/credentials/<id>" \
   -H "$AUTH"
+
+# Cerrar sesión (el mismo TOKEN deja de servir; hace falta un login nuevo)
+curl -s -X POST "$BASE/api/auth/logout" -H "$AUTH"
 ```
 
 ### Ejemplo 2: scripts npm
@@ -951,6 +1110,7 @@ npm run client:post     # crea una credencial password de demo
 npm run client:get      # lista metadatos
 npm run rewrap-keys     # solo con ENCRYPTION_KEY_NEXT definida
 npm run decrypt-env     # solo si hay *_ENCRYPTED en .env
+npm test                # auth, logout, aislamiento, PATCH, 410
 ```
 
 ## 📁 Estructura del proyecto
@@ -962,22 +1122,23 @@ bgvault/
 │   │   └── env.js                   # Carga .env y valida ENCRYPTION_KEY / JWT_SECRET / NEXT
 │   ├── auth/
 │   │   ├── password.js              # scrypt (hash / verify)
-│   │   └── jwt.js                   # JWT HS256 nativo
+│   │   └── jwt.js                   # JWT HS256 + jti
 │   ├── middleware/
-│   │   ├── requireAuth.js           # Bearer JWT + carga del usuario
+│   │   ├── requireAuth.js           # Bearer JWT, jti no revocado
 │   │   ├── requestId.js             # X-Request-Id (UUID o correlacioná el tuyo)
 │   │   └── rateLimit.js             # tope in-memory (auth + reveal)
 │   ├── http/
 │   │   ├── respond.js               # envelope { error: { code, message } }
 │   │   └── paging.js                # limit/offset (list y audit)
 │   ├── db/
-│   │   └── sqlite.js                # node:sqlite, schema, WAL, migrate user_id / wrapped_dek / TTL
+│   │   └── sqlite.js                # node:sqlite, schema, WAL, migrate
 │   ├── store/
 │   │   ├── usersStore.js            # Cuentas
 │   │   ├── credentialsStore.js      # Credenciales + versiones (scoped)
-│   │   └── auditStore.js            # Audit log (scoped)
+│   │   ├── auditStore.js            # Audit log (scoped)
+│   │   └── revokedTokensStore.js    # jti revocados hasta exp
 │   ├── controllers/
-│   │   ├── authController.js        # register, login, me
+│   │   ├── authController.js        # register, login, me, logout
 │   │   ├── generateController.js    # POST /api/generate
 │   │   ├── credentialController.js  # CRUD, patch, reveal, verify, rotate, versions
 │   │   └── auditController.js
@@ -991,7 +1152,8 @@ bgvault/
 │   │   ├── generateRoutes.js        # /api/generate
 │   │   ├── credentialRoutes.js      # /api/credentials
 │   │   └── auditRoutes.js           # /api/audit
-│   ├── server.js                    # Express, headers, 404/JSON inválido
+│   ├── app.js                       # Express, headers, 404/JSON inválido
+│   ├── server.js                    # load env, sqlite, listen
 │   └── setup/
 │       ├── setup-env.js             # Genera o completa .env
 │       ├── rewrap-keys.js           # Reenvuelve DEKs con ENCRYPTION_KEY_NEXT
@@ -1000,6 +1162,8 @@ bgvault/
 │   └── .gitkeep                     # bgvault.sqlite (gitignored)
 ├── collections/
 │   └── bgvault.postman_collection.json
+├── test/
+│   └── api.test.js                  # node --test (auth, jti, vault)
 ├── scripts/
 │   └── client/
 │       └── client.sh                # Cliente bash (post / get)
@@ -1084,7 +1248,8 @@ Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 | Pieza | Detalle |
 |-------|---------|
 | Contraseña de usuario | scrypt, N=16384, r=8, p=1, salt de 16 bytes |
-| JWT | HS256, HMAC-SHA256, `JWT_SECRET` independiente |
+| JWT | HS256, `jti` UUID, `JWT_SECRET` independiente |
+| Logout | `revoked_tokens` guarda el `jti` hasta `exp` |
 | Comparación | `timingSafeEqual` en firma y en hash |
 | Aislamiento | `credentials.user_id` y `audit_events.user_id` |
 
@@ -1109,7 +1274,7 @@ Versiones legado (sin `wrapped_dek`) no se reenvuelven: rotá esas credenciales 
 
 ## ⚠️ Limitaciones
 
-- **JWT sin refresh/revocación**: el token vale hasta `exp`; borrar el usuario invalida `me` y el vault en el acto, pero un JWT ya emitido sigue verificándose hasta que el `sub` desaparece
+- **Sin refresh token**: el access token se revoca con logout (`jti`) o al vencer `exp`. No hay familia de refresh ni rotación de sesión
 - **Sin roles/admin**: todos los usuarios son dueños de su vault; no hay sharing. El re-wrap es un CLI de operador, no un endpoint de usuario
 - **SQLite local**: un proceso, un archivo; no está pensado para un clúster
 - Pensado como vault profesional de desarrollo y base de un producto, no como HSM de producción
@@ -1121,6 +1286,7 @@ Versiones legado (sin `wrapped_dek`) no se reenvuelven: rotá esas credenciales 
 - Node.js **22.13+** (usa `node:sqlite`; recomendado 22 o 24/26)
 - npm
 - Postman (para la collection) o Bash/Git Bash (para `client.sh`)
+- `npm test` no necesita servidor aparte: levanta la app en un puerto efímero con SQLite `:memory:`
 
 ### Módulos nativos utilizados
 

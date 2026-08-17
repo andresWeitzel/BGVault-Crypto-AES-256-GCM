@@ -3,6 +3,7 @@ const jwt = require('../auth/jwt');
 const { hashPassword, verifyPassword, dummyVerify } = require('../auth/password');
 const usersStore = require('../store/usersStore');
 const auditStore = require('../store/auditStore');
+const revokedTokensStore = require('../store/revokedTokensStore');
 const { CODES, sendOk, sendError, sendValidation, sendInternal } = require('../http/respond');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -119,8 +120,25 @@ function me(req, res) {
   });
 }
 
+function logout(req, res) {
+  revokedTokensStore.revoke({
+    jti: req.user.jti,
+    userId: req.user.id,
+    exp: req.user.exp,
+  });
+  audit({
+    action: 'logout',
+    userId: req.user.id,
+    ok: true,
+  });
+  return sendOk(res, 200, {
+    message: 'Sesión cerrada',
+  });
+}
+
 module.exports = {
   register,
   login,
   me,
+  logout,
 };
