@@ -1,18 +1,18 @@
-# 🔐 BGVault — Sistema de Gestión de Contraseñas Encriptadas (AES-256-GCM)
+# 🔐 BGVault — Sistema de Gestión de Credenciales Encriptadas (AES-256-GCM)
 
-Vault REST para almacenar de forma segura **contraseñas, API keys, tokens y notas**. Cada contraseña se cifra con **AES-256-GCM** antes de persistirse; los listados y el GET por id solo devuelven metadatos. El texto plano nunca viaja en query string: sale únicamente por `POST /reveal` con autenticación.
+Vault REST para almacenar de forma segura **contraseñas, API keys, tokens y notas**. Cada credencial se cifra con **AES-256-GCM** antes de persistirse; los listados y el GET por id solo devuelven metadatos. El texto plano nunca viaja en query string: sale únicamente por `POST /reveal` con autenticación.
 
 Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptografía (sin `bcrypt`, `crypto-js` ni KMS externos).
 
 ## 📋 Características
 
-- ✅ **Vault de contraseñas**: no es un encriptador suelto — es una API para crear, listar, revelar, verificar y eliminar contraseñas
+- ✅ **Vault de credenciales**: no es un encriptador suelto — es una API para crear, listar, revelar, verificar y eliminar credenciales
 - ✅ **Cuatro tipos**: `password`, `api_key`, `token` y `note`, cada uno con payload validado
 - ✅ **AES-256-GCM**: cifrado autenticado; el tag GCM detecta manipulación del ciphertext
-- ✅ **AAD ligado a la contraseña**: Additional Authenticated Data `secret:<id>:<type>` — un blob no se puede reubicar en otro id o tipo
+- ✅ **AAD ligado a la credencial**: Additional Authenticated Data `credential:<id>:<type>` — un blob no se puede reubicar en otro id o tipo
 - ✅ **IV de 12 bytes (NIST)** y salt de 64 bytes únicos por cada cifrado
 - ✅ **PBKDF2**: 100.000 iteraciones con SHA-256 para derivar la clave AES-256
-- ✅ **IDs UUID**: se abandonó el `index` numérico; cada contraseña tiene identidad estable
+- ✅ **IDs UUID**: se abandonó el `index` numérico; cada credencial tiene identidad estable
 - ✅ **Metadatos en claro, payload cifrado**: `name`, `service` y `tags` se pueden filtrar; la clave/contraseña no aparece en GET
 - ✅ **Reveal por POST**: nada de `?decrypt=true` en la URL (evita logs de proxies y browsers)
 - ✅ **Autenticación de servicio**: header `X-API-Key` o `Authorization: Bearer`, comparado con `timingSafeEqual`
@@ -21,7 +21,7 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **Módulo reutilizable**: `src/crypto/lib.js` se copia a otros proyectos Node sin dependencias extra
 - ✅ **Setup de entorno**: `npm run setup-env` genera o completa `.env`
 
-El almacén actual es **en memoria** (las contraseñas se pierden al reiniciar). Persistencia y usuarios multi-tenant son la siguiente fase.
+El almacén actual es **en memoria** (las credenciales se pierden al reiniciar). Persistencia y usuarios multi-tenant son la siguiente fase.
 
 ## 🛠️ Tecnologías
 
@@ -48,7 +48,7 @@ npm run server
 |----------|-----|
 | `PORT` | Puerto HTTP (por defecto `3000`) |
 | `ENCRYPTION_KEY` | Clave maestra de cifrado (≥ 32 caracteres, aleatoria) |
-| `API_KEY` | Clave de acceso a `/api/secrets*` |
+| `API_KEY` | Clave de acceso a `/api/credentials*` |
 
 En desarrollo local la API key de la collection es `bgvault-dev-api-key-local` (la misma que espera Postman). En producción usá valores distintos y largos.
 
@@ -111,15 +111,15 @@ Auth: header X-API-Key o Authorization: Bearer
 |--------|-------------|
 | `npm run setup-env` | Genera o completa `.env` (`ENCRYPTION_KEY`, `API_KEY`) |
 | `npm run server` | Inicia el vault Express |
-| `npm run client:post` | Crea una contraseña `password` de demo (requiere `API_KEY`) |
-| `npm run client:get` | Lista contraseñas (solo metadatos) |
+| `npm run client:post` | Crea una credencial `password` de demo (requiere `API_KEY`) |
+| `npm run client:get` | Lista credenciales (solo metadatos) |
 | `npm run decrypt-env` | Muestra variables `*_ENCRYPTED` del `.env`, si existen |
 
 ## 🔑 Autenticación
 
 `GET /health` es público.
 
-Todas las rutas `/api/secrets*` exigen API key. Sin ella o con una inválida: **401**.
+Todas las rutas `/api/credentials*` exigen API key. Sin ella o con una inválida: **401**.
 
 ```
 X-API-Key: bgvault-dev-api-key-local
@@ -159,11 +159,11 @@ Verifica que el proceso esté vivo. No requiere auth.
 
 ---
 
-### 2. Crear contraseña
+### 2. Crear credencial
 
-Cifra el `payload` con AES-256-GCM (AAD = `secret:<id>:<type>`) y guarda el registro.
+Cifra el `payload` con AES-256-GCM (AAD = `credential:<id>:<type>`) y guarda el registro.
 
-**POST** `/api/secrets`  
+**POST** `/api/credentials`  
 **Auth:** requerida  
 **Status:** `201`
 
@@ -203,8 +203,8 @@ Cifra el `payload` con AES-256-GCM (AAD = `secret:<id>:<type>`) y guarda el regi
 **Respuesta 201:**
 ```json
 {
-  "message": "Secreto almacenado",
-  "secret": {
+  "message": "Credencial almacenada",
+  "credential": {
     "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
     "type": "password",
     "name": "Gmail personal",
@@ -235,13 +235,13 @@ La respuesta **nunca** incluye `payload` ni ciphertext.
 
 ---
 
-### 3. Listar contraseñas
+### 3. Listar credenciales
 
 Devuelve solo metadatos. Se puede filtrar.
 
-**GET** `/api/secrets`  
-**GET** `/api/secrets?type=password`  
-**GET** `/api/secrets?service=Gmail`  
+**GET** `/api/credentials`  
+**GET** `/api/credentials?type=password`  
+**GET** `/api/credentials?service=Gmail`  
 **Auth:** requerida
 
 **Query:**
@@ -254,7 +254,7 @@ Devuelve solo metadatos. Se puede filtrar.
 **Respuesta 200:**
 ```json
 {
-  "secrets": [
+  "credentials": [
     {
       "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
       "type": "password",
@@ -302,26 +302,26 @@ Otros tipos de ejemplo para crear:
 
 ### 4. Obtener metadatos por id
 
-**GET** `/api/secrets/:id`  
+**GET** `/api/credentials/:id`  
 **Auth:** requerida
 
-**Respuesta 200:** mismo objeto `secret` (sin payload).
+**Respuesta 200:** mismo objeto `credential` (sin payload).
 
 **Respuesta 404:**
 ```json
 {
-  "error": "Secreto no encontrado",
+  "error": "Credencial no encontrada",
   "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
 
 ---
 
-### 5. Revelar contraseña (POST)
+### 5. Revelar credencial (POST)
 
 Desencripta el payload y lo devuelve. Es **POST** a propósito: el valor no queda en access logs de query string.
 
-**POST** `/api/secrets/:id/reveal`  
+**POST** `/api/credentials/:id/reveal`  
 **Auth:** requerida  
 Body: no hace falta.
 
@@ -348,7 +348,7 @@ Body: no hace falta.
 
 Compara un candidato contra el payload almacenado. **Solo aplica a `type=password`**.
 
-**POST** `/api/secrets/:id/verify`  
+**POST** `/api/credentials/:id/verify`  
 **Auth:** requerida
 
 **Body:**
@@ -387,15 +387,15 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 
 ---
 
-### 7. Eliminar contraseña
+### 7. Eliminar credencial
 
-**DELETE** `/api/secrets/:id`  
+**DELETE** `/api/credentials/:id`  
 **Auth:** requerida
 
 **Respuesta 200:**
 ```json
 {
-  "message": "Secreto eliminado",
+  "message": "Credencial eliminada",
   "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "timestamp": "2026-08-16T01:35:56.264Z"
 }
@@ -410,10 +410,10 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 | Código | Significado |
 |--------|-------------|
 | 200 | Listar, get, reveal, verify, delete |
-| 201 | Contraseña creada |
+| 201 | Credencial creada |
 | 400 | Validación (tipo, name, payload, verify sobre no-password) |
 | 401 | Falta o no coincide `API_KEY` |
-| 404 | Contraseña o ruta inexistente |
+| 404 | Credencial o ruta inexistente |
 
 ## 🧪 Collection de Postman
 
@@ -448,7 +448,7 @@ export BASE="http://localhost:3000"
 curl -s "$BASE/health"
 
 # Crear API key
-curl -s -X POST "$BASE/api/secrets" \
+curl -s -X POST "$BASE/api/credentials" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $API_KEY" \
   -d '{
@@ -459,23 +459,23 @@ curl -s -X POST "$BASE/api/secrets" \
   }'
 
 # Listar (sin plaintext)
-curl -s "$BASE/api/secrets" -H "X-API-Key: $API_KEY"
+curl -s "$BASE/api/credentials" -H "X-API-Key: $API_KEY"
 
 # Filtrar
-curl -s "$BASE/api/secrets?type=password" -H "X-API-Key: $API_KEY"
+curl -s "$BASE/api/credentials?type=password" -H "X-API-Key: $API_KEY"
 
 # Revelar (reemplazá el id)
-curl -s -X POST "$BASE/api/secrets/<id>/reveal" \
+curl -s -X POST "$BASE/api/credentials/<id>/reveal" \
   -H "X-API-Key: $API_KEY"
 
 # Verificar password
-curl -s -X POST "$BASE/api/secrets/<id>/verify" \
+curl -s -X POST "$BASE/api/credentials/<id>/verify" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $API_KEY" \
   -d '{ "password": "miContraseña123" }'
 
 # Eliminar
-curl -s -X DELETE "$BASE/api/secrets/<id>" \
+curl -s -X DELETE "$BASE/api/credentials/<id>" \
   -H "X-API-Key: $API_KEY"
 ```
 
@@ -484,7 +484,7 @@ curl -s -X DELETE "$BASE/api/secrets/<id>" \
 ```bash
 npm run setup-env
 npm run server          # en otra terminal
-npm run client:post     # crea un password de demo
+npm run client:post     # crea una credencial password de demo
 npm run client:get      # lista metadatos
 npm run decrypt-env     # solo si hay *_ENCRYPTED en .env
 ```
@@ -499,14 +499,14 @@ bgvault/
 │   ├── middleware/
 │   │   └── requireApiKey.js         # Auth X-API-Key / Bearer + timingSafeEqual
 │   ├── store/
-│   │   └── secretsStore.js          # Almacén in-memory (Map por UUID)
+│   │   └── credentialsStore.js      # Almacén in-memory (Map por UUID)
 │   ├── controllers/
-│   │   └── secretController.js      # Create, list, get, reveal, verify, delete
+│   │   └── credentialController.js  # Create, list, get, reveal, verify, delete
 │   ├── crypto/
 │   │   ├── lib.js                   # encrypt / decrypt AES-256-GCM + AAD
 │   │   └── crypto-cli.js            # CLI: cifrar / descifrar un valor
 │   ├── routes/
-│   │   └── secretRoutes.js          # /api/secrets
+│   │   └── credentialRoutes.js      # /api/credentials
 │   ├── server.js                    # Express, headers, 404/JSON inválido
 │   └── setup/
 │       ├── setup-env.js             # Genera o completa .env
@@ -539,7 +539,7 @@ La lógica de cifrado está aislada en un módulo independiente, pensado para co
 const { encrypt, decrypt } = require('./src/crypto/lib');
 
 const clave = process.env.ENCRYPTION_KEY;
-const aad = 'secret:<id>:password';
+const aad = 'credential:<id>:password';
 
 const cifrado = encrypt('mi contraseña', clave, aad);
 const plano = decrypt(cifrado, clave, aad);
@@ -547,7 +547,7 @@ const plano = decrypt(cifrado, clave, aad);
 
 - Si no pasás `key`, usa `process.env.ENCRYPTION_KEY`.
 - `aad` es opcional, pero **el mismo valor** tiene que usarse al cifrar y al descifrar.
-- El vault ata AAD a `secret:<uuid>:<type>`.
+- El vault ata AAD a `credential:<uuid>:<type>`.
 
 ### CLI
 
@@ -578,13 +578,13 @@ Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 | Derivación | PBKDF2, 100.000 iteraciones, SHA-256 |
 | Salt | 64 bytes aleatorios / mensaje |
 | IV | 12 bytes aleatorios / mensaje |
-| AAD | `secret:<id>:<type>` en el vault |
+| AAD | `credential:<id>:<type>` en el vault |
 | Autenticación | Tag GCM (integridad + autenticidad) |
 
 ### Qué no se filtra
 
 - GET y list **no** devuelven ciphertext ni plaintext
-- Reveal es POST: la contraseña no queda en la URL
+- Reveal es POST: la credencial no queda en la URL
 - No hay `?decrypt=true`
 - `X-Powered-By` deshabilitado; `X-Content-Type-Options: nosniff`; `X-Frame-Options: DENY`
 - Body JSON limitado a 32 KB
@@ -599,9 +599,9 @@ Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 
 ## ⚠️ Limitaciones
 
-- **Memoria**: las contraseñas se pierden al reiniciar el proceso
+- **Memoria**: las credenciales se pierden al reiniciar el proceso
 - **Un solo `API_KEY`**: no hay usuarios, roles ni tenants todavía
-- **Sin rotación / versionado** de contraseñas ni envelope encryption con KMS
+- **Sin rotación / versionado** de credenciales ni envelope encryption con KMS
 - **Sin persistencia** (SQLite/Postgres es la siguiente fase)
 - Pensado como vault de desarrollo y base de un producto, no como caja fuerte de producción cerrada
 
@@ -625,7 +625,7 @@ ISC
 
 ## 👤 Autor
 
-Proyecto BGVault: gestión de contraseñas con criptografía nativa de Node.js.
+Proyecto BGVault: gestión de credenciales con criptografía nativa de Node.js.
 
 ---
 

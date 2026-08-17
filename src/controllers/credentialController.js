@@ -1,26 +1,26 @@
 const crypto = require('node:crypto');
 const { encrypt, decrypt } = require('../crypto/lib');
-const store = require('../store/secretsStore');
+const store = require('../store/credentialsStore');
 
-const SECRET_TYPES = ['password', 'api_key', 'token', 'note'];
+const CREDENTIAL_TYPES = ['password', 'api_key', 'token', 'note'];
 
 function now() {
   return new Date().toISOString();
 }
 
 function aadFor(id, type) {
-  return `secret:${id}:${type}`;
+  return `credential:${id}:${type}`;
 }
 
-function toPublic(secret) {
+function toPublic(credential) {
   return {
-    id: secret.id,
-    type: secret.type,
-    name: secret.name,
-    service: secret.service,
-    tags: secret.tags,
-    createdAt: secret.createdAt,
-    updatedAt: secret.updatedAt,
+    id: credential.id,
+    type: credential.type,
+    name: credential.name,
+    service: credential.service,
+    tags: credential.tags,
+    createdAt: credential.createdAt,
+    updatedAt: credential.updatedAt,
   };
 }
 
@@ -50,7 +50,7 @@ function validatePayload(type, payload) {
       if (!payload.text) return 'payload.text es requerido';
       break;
     default:
-      return `type debe ser uno de: ${SECRET_TYPES.join(', ')}`;
+      return `type debe ser uno de: ${CREDENTIAL_TYPES.join(', ')}`;
   }
   return null;
 }
@@ -59,17 +59,19 @@ function encryptPayload(id, type, payload) {
   return encrypt(JSON.stringify(payload), undefined, aadFor(id, type));
 }
 
-function decryptPayload(secret) {
-  return JSON.parse(decrypt(secret.ciphertext, undefined, aadFor(secret.id, secret.type)));
+function decryptPayload(credential) {
+  return JSON.parse(
+    decrypt(credential.ciphertext, undefined, aadFor(credential.id, credential.type)),
+  );
 }
 
-function createSecret(req, res) {
+function createCredential(req, res) {
   const { type, name, service, tags, payload } = req.body || {};
   const timestamp = now();
 
-  if (!type || !SECRET_TYPES.includes(type)) {
+  if (!type || !CREDENTIAL_TYPES.includes(type)) {
     return res.status(400).json({
-      error: `type debe ser uno de: ${SECRET_TYPES.join(', ')}`,
+      error: `type debe ser uno de: ${CREDENTIAL_TYPES.join(', ')}`,
       timestamp,
     });
   }
@@ -109,92 +111,92 @@ function createSecret(req, res) {
     store.create(record);
 
     return res.status(201).json({
-      message: 'Secreto almacenado',
-      secret: toPublic(record),
+      message: 'Credencial almacenada',
+      credential: toPublic(record),
       timestamp,
     });
   } catch (error) {
-    console.error('Error al almacenar el secreto:', error.message);
+    console.error('Error al almacenar la credencial:', error.message);
     return res.status(500).json({
-      error: 'Error interno al almacenar el secreto',
+      error: 'Error interno al almacenar la credencial',
       timestamp,
     });
   }
 }
 
-function listSecrets(req, res) {
+function listCredentials(req, res) {
   const { type, service } = req.query;
-  if (type && !SECRET_TYPES.includes(type)) {
+  if (type && !CREDENTIAL_TYPES.includes(type)) {
     return res.status(400).json({
-      error: `type debe ser uno de: ${SECRET_TYPES.join(', ')}`,
+      error: `type debe ser uno de: ${CREDENTIAL_TYPES.join(', ')}`,
       timestamp: now(),
     });
   }
 
-  const secrets = store.list({ type, service }).map(toPublic);
+  const credentials = store.list({ type, service }).map(toPublic);
   return res.json({
-    secrets,
-    count: secrets.length,
+    credentials,
+    count: credentials.length,
     timestamp: now(),
   });
 }
 
-function getSecret(req, res) {
-  const secret = store.findById(req.params.id);
-  if (!secret) {
+function getCredential(req, res) {
+  const credential = store.findById(req.params.id);
+  if (!credential) {
     return res.status(404).json({
-      error: 'Secreto no encontrado',
+      error: 'Credencial no encontrada',
       timestamp: now(),
     });
   }
 
   return res.json({
-    secret: toPublic(secret),
+    credential: toPublic(credential),
     timestamp: now(),
   });
 }
 
-function revealSecret(req, res) {
-  const secret = store.findById(req.params.id);
-  if (!secret) {
+function revealCredential(req, res) {
+  const credential = store.findById(req.params.id);
+  if (!credential) {
     return res.status(404).json({
-      error: 'Secreto no encontrado',
+      error: 'Credencial no encontrada',
       timestamp: now(),
     });
   }
 
   try {
-    const payload = decryptPayload(secret);
+    const payload = decryptPayload(credential);
     return res.json({
-      id: secret.id,
-      type: secret.type,
-      name: secret.name,
-      service: secret.service,
+      id: credential.id,
+      type: credential.type,
+      name: credential.name,
+      service: credential.service,
       payload,
       timestamp: now(),
     });
   } catch (error) {
-    console.error('Error al revelar el secreto:', error.message);
+    console.error('Error al revelar la credencial:', error.message);
     return res.status(500).json({
-      error: 'Error interno al revelar el secreto',
+      error: 'Error interno al revelar la credencial',
       timestamp: now(),
     });
   }
 }
 
-function verifySecret(req, res) {
+function verifyCredential(req, res) {
   const timestamp = now();
-  const secret = store.findById(req.params.id);
-  if (!secret) {
+  const credential = store.findById(req.params.id);
+  if (!credential) {
     return res.status(404).json({
-      error: 'Secreto no encontrado',
+      error: 'Credencial no encontrada',
       timestamp,
     });
   }
 
-  if (secret.type !== 'password') {
+  if (credential.type !== 'password') {
     return res.status(400).json({
-      error: 'verify solo aplica a secretos de tipo password',
+      error: 'verify solo aplica a credenciales de tipo password',
       timestamp,
     });
   }
@@ -208,7 +210,7 @@ function verifySecret(req, res) {
   }
 
   try {
-    const stored = decryptPayload(secret);
+    const stored = decryptPayload(credential);
     const verified = {
       password: password === stored.password,
     };
@@ -218,42 +220,42 @@ function verifySecret(req, res) {
     const isValid = Object.values(verified).every(Boolean);
 
     return res.json({
-      id: secret.id,
+      id: credential.id,
       isValid,
       verified,
       message: isValid ? 'Valores válidos' : 'Valores inválidos',
       timestamp,
     });
   } catch (error) {
-    console.error('Error al verificar el secreto:', error.message);
+    console.error('Error al verificar la credencial:', error.message);
     return res.status(500).json({
-      error: 'Error interno al verificar el secreto',
+      error: 'Error interno al verificar la credencial',
       timestamp,
     });
   }
 }
 
-function deleteSecret(req, res) {
+function deleteCredential(req, res) {
   const deleted = store.remove(req.params.id);
   if (!deleted) {
     return res.status(404).json({
-      error: 'Secreto no encontrado',
+      error: 'Credencial no encontrada',
       timestamp: now(),
     });
   }
 
   return res.json({
-    message: 'Secreto eliminado',
+    message: 'Credencial eliminada',
     id: req.params.id,
     timestamp: now(),
   });
 }
 
 module.exports = {
-  createSecret,
-  listSecrets,
-  getSecret,
-  revealSecret,
-  verifySecret,
-  deleteSecret,
+  createCredential,
+  listCredentials,
+  getCredential,
+  revealCredential,
+  verifyCredential,
+  deleteCredential,
 };

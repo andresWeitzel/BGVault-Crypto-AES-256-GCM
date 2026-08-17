@@ -37,7 +37,7 @@ function decryptEnv() {
   }
 
   if (!found) {
-    console.log('No hay variables *_ENCRYPTED. El vault guarda secretos vía API, no en este archivo.');
+    console.log('No hay variables *_ENCRYPTED. El vault guarda credenciales vía API, no en este archivo.');
   }
 }
 

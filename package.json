@@ -1,7 +1,7 @@
 {
   "name": "bgvault",
   "version": "1.0.0",
-  "description": "BGVault — vault de secretos con AES-256-GCM",
+  "description": "BGVault — vault de credenciales con AES-256-GCM",
   "main": "src/server.js",
   "scripts": {
     "server": "node src/server.js",
@@ -10,7 +10,7 @@
     "setup-env": "node src/setup/setup-env.js",
     "decrypt-env": "node src/setup/decrypt-env.js"
   },
-  "keywords": ["vault", "secrets", "aes-256-gcm", "bgvault"],
+  "keywords": ["vault", "credentials", "aes-256-gcm", "bgvault"],
   "author": "",
   "license": "ISC",
   "dependencies": {
