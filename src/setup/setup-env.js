@@ -13,6 +13,18 @@ loadEnvFile();
 
 const MANAGED_KEYS = ['PORT', 'ENCRYPTION_KEY', 'JWT_SECRET'];
 
+const DEFAULTS = {
+  JWT_EXPIRES_IN: '28800',
+  ENCRYPTION_KEY_NEXT: '',
+  SQLITE_PATH: '',
+  RATE_LIMIT_AUTH_MAX: '60',
+  RATE_LIMIT_AUTH_WINDOW_MS: '600000',
+  RATE_LIMIT_REVEAL_MAX: '120',
+  RATE_LIMIT_REVEAL_WINDOW_MS: '60000',
+  RATE_LIMIT_IP_MAX: '',
+  RATE_LIMIT_IP_WINDOW_MS: '600000',
+};
+
 function generateSecret(bytes) {
   return crypto.randomBytes(bytes).toString('hex');
 }
@@ -47,15 +59,23 @@ function setupEnv() {
     generated.push('JWT_SECRET');
   }
 
-  const preserved = Object.entries(existing)
-    .filter(([key]) => !MANAGED_KEYS.includes(key))
-    .map(([key, value]) => `${key}=${value}`);
+  const preservedKeys = new Set(MANAGED_KEYS);
+  const extras = [];
+  for (const [key, value] of Object.entries(existing)) {
+    if (preservedKeys.has(key)) continue;
+    extras.push(`${key}=${value}`);
+    preservedKeys.add(key);
+  }
+  for (const [key, value] of Object.entries(DEFAULTS)) {
+    if (preservedKeys.has(key)) continue;
+    extras.push(`${key}=${value}`);
+  }
 
   const envContent = `# BGVault — no subas este archivo
 PORT=${port}
 ENCRYPTION_KEY=${encryptionKey}
 JWT_SECRET=${jwtSecret}
-${preserved.length ? `\n${preserved.join('\n')}\n` : ''}`;
+${extras.length ? `\n${extras.join('\n')}\n` : ''}`;
 
   fs.writeFileSync(ENV_FILE, envContent, 'utf8');
 

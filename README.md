@@ -1,6 +1,6 @@
 # 🔐 BGVault — Sistema de Gestión de Credenciales Encriptadas (AES-256-GCM)
 
-Vault REST para almacenar de forma segura **contraseñas, API keys, tokens y notas**. Cada credencial se cifra con **AES-256-GCM** antes de persistirse; los listados y el GET por id solo devuelven metadatos. El texto plano nunca viaja en query string: sale únicamente por `POST /reveal` con autenticación.
+Vault REST para almacenar de forma segura **contraseñas, API keys, tokens y notas**. Cada credencial se cifra con **AES-256-GCM** antes de persistirse; los listados y el GET por id solo devuelven metadatos. El texto plano nunca viaja en query string: sale únicamente por `POST /reveal` con autenticación. La misma API está colgada en [https://bgvault.onrender.com](https://bgvault.onrender.com) (sandbox).
 
 Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptografía (sin `bcrypt`, `crypto-js` ni KMS externos).
 
@@ -27,7 +27,8 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **Sobre JSON uniforme**: éxitos llevan `requestId` + `timestamp`; errores son `{ error: { code, message }, requestId, timestamp }`
 - ✅ **Rate limit**: tope en register/login, reveal/verify y (opcional) global por IP vía `RATE_LIMIT_IP_MAX` (`X-RateLimit-*`, **429** `RATE_LIMITED`)
 - ✅ **Sin clave por defecto**: el servidor no arranca con `default-key-change-me…`; exige `ENCRYPTION_KEY` y `JWT_SECRET` (≥ 32 caracteres)
-- ✅ **Collection de Postman**: casos de éxito (201/200) y error (400/401/404/409/410) con scripts `pm.test` ejecutables desde el Runner
+- ✅ **Demo en Render**: la misma API en `https://bgvault.onrender.com` (sandbox Free; Postman `environment=production`)
+- ✅ **Collection de Postman**: casos de éxito (201/200) y error (400/401/404/409/410) con scripts `pm.test`; `environment` = `local` o `production`
 - ✅ **Módulo reutilizable**: `src/crypto/lib.js` se copia a otros proyectos Node sin dependencias extra
 - ✅ **Setup de entorno**: `npm run setup-env` genera o completa `.env`
 
@@ -69,7 +70,7 @@ npm run server
 | `RATE_LIMIT_AUTH_WINDOW_MS` | Ventana de auth en ms (por defecto `600000` = 10 min) |
 | `RATE_LIMIT_REVEAL_MAX` | Tope de reveal/verify por usuario (por defecto `120`) |
 | `RATE_LIMIT_REVEAL_WINDOW_MS` | Ventana de reveal/verify en ms (por defecto `60000` = 1 min) |
-| `RATE_LIMIT_IP_MAX` | Tope **global** de `/api/*` por IP; vacío = desactivado. Se setea en Render sin cambiar código |
+| `RATE_LIMIT_IP_MAX` | Tope **global** de `/api/*` por IP; vacío = desactivado. En local: `.env`. En production: `render.yaml` |
 | `RATE_LIMIT_IP_WINDOW_MS` | Ventana del tope global (por defecto `600000` = 10 min) |
 
 En la collection de Postman el usuario de demo es `demo@bgvault.local` / `bgvault-dev-password` (se crea en el Runner). En producción usá valores distintos y largos.
@@ -114,7 +115,32 @@ No hay clave hardcodeada. Si `ENCRYPTION_KEY` o `JWT_SECRET` faltan, miden menos
 
 ## 🚀 Uso
 
-### Iniciar el servidor
+La API es la misma en local y en producción. Cambiá solo el host.
+
+| Entorno | Base URL | Para |
+|---------|----------|------|
+| **Local** | `http://localhost:3000` | desarrollo, `npm test`, Runner completo de Postman |
+| **Production** | [`https://bgvault.onrender.com`](https://bgvault.onrender.com) | demo pública (Render Free) |
+
+`GET /` es el índice (rutas de auth y vault). `GET /health` confirma que el proceso está vivo. En Postman, la collection usa `environment` = `local` o `production` y un pre-request arma `{{baseUrl}}` con esas mismas URLs.
+
+### Qué hace Render y qué no
+
+El servicio en Render **es este vault** (Express + SQLite + JWT), no un panel aparte. Instancia Free: HTTPS, rate limit por IP, cifrado igual que en tu máquina.
+
+| Esto sí | Esto no (Free) |
+|---------|----------------|
+| Misma API: register, JWT, create/reveal/rotate, generate, audit | Disco persistente: la SQLite está en `/tmp` |
+| `GET /` y `GET /health` públicos | Los datos de **ayer**: al dormir (~15 min sin tráfico) o al redeploy, la base arranca **vacía** |
+| Aislamiento por usuario **mientras** el contenedor está despierto | SSH, jobs, `rewrap-keys` en el server |
+| Tope por IP (`RATE_LIMIT_IP_MAX`, **429** `RATE_LIMITED`) | Arranque instantáneo: la primera pega puede tardar ~30–60 s |
+| Un register/login por persona no ve el vault de otra | 24/7 sin sleep (Free se apaga con inactividad) |
+
+Cerrar Postman **no** borra la base. La borra el sleep o un redeploy. Es un sandbox para probar el contrato, no un vault de producción con historia.
+
+Si una IP se pasa del tope: **429** `RATE_LIMITED` (`Demasiadas solicitudes para esta IP`). Las demás IPs siguen.
+
+### Iniciar el servidor (local)
 
 ```bash
 npm run server
@@ -132,94 +158,12 @@ Auth: JWT Bearer (POST /api/auth/register, /login; POST /api/auth/logout)
 | Script | Descripción |
 |--------|-------------|
 | `npm run setup-env` | Genera o completa `.env` (`ENCRYPTION_KEY`, `JWT_SECRET`) |
-| `npm run server` | Inicia el vault Express |
+| `npm run server` | Inicia el vault Express en local |
 | `npm run client:post` | Registra/loguea `demo@bgvault.local` y crea una credencial `password` |
 | `npm run client:get` | Lista credenciales del usuario demo (solo metadatos) |
 | `npm run decrypt-env` | Muestra variables `*_ENCRYPTED` del `.env`, si existen |
 | `npm run rewrap-keys` | Reenvuelve `wrapped_dek` con `ENCRYPTION_KEY_NEXT` (no toca el payload) |
 | `npm test` | Tests nativos (`node --test`): auth, logout/`jti`, aislamiento, PATCH, paginación, 410 |
-
-## ☁️ Deploy (Render Free)
-
-Sandbox público **sin pago mensual**. Misma API que en local. Lo que configura el hosting está en `render.yaml`.
-
-### Qué hace Render y qué no
-
-| Sí | No (Free) |
-|----|-----------|
-| HTTPS `https://bgvault-xxxx.onrender.com` | Disco persistente (la SQLite vive en `/tmp`) |
-| `npm install` + `node src/server.js` | SSH, jobs, `rewrap-keys` en el server |
-| Env `ENCRYPTION_KEY` / `JWT_SECRET` / rate limit | Postgres (no hace falta: el vault usa SQLite) |
-| Health `GET /health` | Datos de ayer: al dormir (~15 min) o redeploy, la base arranca **vacía** |
-| Rate limit por IP (`RATE_LIMIT_IP_MAX`) | 24/7 sin cold start (primera pega ~30–60 s) |
-
-Cada uno se registra aparte: no ve el password ni el id de otro **mientras** el contenedor está despierto. Cerrar Postman **no** borra la base; la borra el sleep/redeploy.
-
-### A. Blueprint (recomendado)
-
-El repo tiene que estar en GitHub **con estos cambios pusheados** (`render.yaml` en la misma carpeta que `package.json`).
-
-1. [dashboard.render.com](https://dashboard.render.com) → Login (GitHub)
-2. **New** → **Blueprint**
-3. Autorizá el repo de BGVault
-4. **Branch:** `master` (o la que uses)
-5. **Blueprint path:** `render.yaml` (raíz). Si GitHub tiene carpetas de más, **Root Directory** = carpeta del `package.json`
-6. Apply. Plan **Free**. `ENCRYPTION_KEY` y `JWT_SECRET` se **generan solos** (`generateValue`, ≥ 32 caracteres, distintos)
-7. Esperá **Live** (unos minutos). Copiá la URL `https://….onrender.com`
-
-### B. A mano (si no usás Blueprint)
-
-**New** → **Web Service** → el repo →:
-
-| Campo | Valor |
-|-------|--------|
-| Language / runtime | Node |
-| Branch | `master` |
-| Root Directory | (vacío si `package.json` está en la raíz del repo) |
-| Build Command | `npm install` |
-| Start Command | `node src/server.js` |
-| Instance type | **Free** |
-| Health Check Path | `/health` |
-
-**Environment** (Environment → Add):
-
-| Key | Value |
-|-----|--------|
-| `NODE_VERSION` | `22.13.0` |
-| `HOST` | `0.0.0.0` |
-| `SQLITE_PATH` | `/tmp/bgvault.sqlite` |
-| `ENCRYPTION_KEY` | Generate / 32+ chars **distinto** de JWT |
-| `JWT_SECRET` | Generate / 32+ chars **distinto** de la KEK |
-| `RATE_LIMIT_IP_MAX` | `40` (o `10` si querés más cerrado) |
-| `RATE_LIMIT_IP_WINDOW_MS` | `600000` |
-| `RATE_LIMIT_AUTH_MAX` | `20` |
-| `RATE_LIMIT_AUTH_WINDOW_MS` | `600000` |
-| `RATE_LIMIT_REVEAL_MAX` | `120` |
-| `RATE_LIMIT_REVEAL_WINDOW_MS` | `60000` |
-
-`PORT` lo pone Render. No lo hardcodees a 3000.
-
-No agregues **Persistent Disk**, **Postgres** ni **Key Value**.
-
-### Probar
-
-La primera request puede tardar un minuto (cold start).
-
-```bash
-curl -si "https://<servicio>.onrender.com/health"
-```
-
-Esperado: **200**, `"status":"OK"`. Después:
-
-```bash
-curl -s -X POST "https://<servicio>.onrender.com/api/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"demo@bgvault.local","password":"bgvault-dev-password"}'
-```
-
-Postman: un solo JSON. Variable `environment` = `local` o `production` (pre-request setea `baseUrl`). Timeout ≥ 90 s en el primer Health de production. El Runner completo suele superar 40 hits: o subís `RATE_LIMIT_IP_MAX` o corrés con `local`.
-
-Si alguien se pasa del tope por IP: **429** `RATE_LIMITED` (`Demasiadas solicitudes para esta IP`). Otra IP no se bloquea.
 
 ## 🔑 Autenticación
 
@@ -282,7 +226,10 @@ Register/login: 60 req / 10 min por IP (`RATE_LIMIT_AUTH_MAX`). Reveal y verify:
 
 ```
 http://localhost:3000
+https://bgvault.onrender.com
 ```
+
+Mismos paths. En Postman: `environment=local` o `environment=production`.
 
 ---
 
@@ -291,7 +238,7 @@ http://localhost:3000
 Verifica que el proceso esté vivo. No requiere auth.
 
 **GET** `/` — índice de la API (navegador).  
-**GET** `/health` — healthcheck de Render.
+**GET** `/health` — liveness (local y Render).
 
 **GET /** **Respuesta 200:** nombre, `health`, rutas de auth/vault y link al repo. Sin `payload`.
 
@@ -1045,47 +992,45 @@ Lista eventos de register, login, logout, generate, create, get, patch, reveal, 
 
 ## 🧪 Collection de Postman
 
-La collection **Crypto AES-256-GCM Vault** cubre el contrato con `pm.test` en cada request: Health (+ `X-Request-Id`), Auth (401/400/409, logout/`TOKEN_REVOKED`), Generate, Create, list/paginación, PATCH de metadatos, aislamiento, Reveal, Lifecycle (one-time `REVEAL_LIMIT` y TTL `CREDENTIAL_EXPIRED`), verify, rotación, auditoría paginada y delete.
+Un archivo: `collections/bgvault.postman_collection.json`. Cubre el contrato con `pm.test` en cada request (201/200 y 400/401/404/409/410/429): Health, Auth, Generate, Create, PATCH, aislamiento, Reveal, TTL, verify, rotación, audit, delete.
 
-Archivo: `collections/bgvault.postman_collection.json` (un solo JSON).  
-El entorno vive en **variables de la collection**:
+**Local vs production** está **dentro** de la collection (no hay JSON extra). Variable `environment`:
 
-| Variable | Valores | Host |
-|----------|---------|------|
-| `environment` | `local` (default) o `production` | — |
-| `baseUrlLocal` | `http://localhost:3000` | Local |
-| `baseUrlProduction` | `https://bgvault.onrender.com` | Production |
-| `baseUrl` | lo setea el **pre-request** de la collection | eligido por `environment` |
+| `environment` | Pega a |
+|---------------|--------|
+| `local` (default) | `http://localhost:3000` (`baseUrlLocal`) |
+| `production` | `https://bgvault.onrender.com` (`baseUrlProduction`) |
 
-Editá `environment` en la collection (Variables). Runner: **Environment: none**. Si queda un environment de Postman viejo con `baseUrl`, pisa el de la collection: borralo.
-
-El `_postman_id` se mantiene fijo para que reimportar **Replace** actualice y no duplique.
+Un **pre-request** de la collection copia eso a `{{baseUrl}}`. Todas las requests usan `{{baseUrl}}`. El `accessToken` también vive en variables de la collection.
 
 ### Cómo ejecutarla
 
-1. Local: `npm run setup-env` y `npm run server`, `environment=local`. Production: `environment=production` (la primera pega a Render puede tardar ~1 min)
-2. Postman **Import** → `collections/bgvault.postman_collection.json` (si ya existe, **Replace**)
-3. **Runner** → **Run collection** (en orden). Auth registra `demo@bgvault.local` (o login si ya existe) y guarda `accessToken`
-4. Guardá (Ctrl+S) si Postman pide persistir variables
+1. Importá el JSON (**Replace** si ya existía; el `_postman_id` es fijo para no duplicar)
+2. Collection → **Variables** → `environment` = `local` o `production`
+3. Runner: **Environment: none** (un environment de Postman con `baseUrl` pisa el de la collection)
+4. **Run collection** en orden. Auth registra/loguea `demo@bgvault.local` y guarda `accessToken`
 
-En el Runner, **Environment: none**. El host lo decide `environment` (`local` / `production`) en las variables de la collection.
+Local: `npm run server` antes. Production: primera pega puede tardar ~1 min si Render estaba dormido (timeout alto en Health). El Runner completo contra production puede **429** (`RATE_LIMIT_IP_MAX=40`); el contrato entero se corre en `local`.
 
-Si Render está dormido, Health puede tardar; subí el timeout del request o esperá y reintentá. El Runner completo contra Free puede pegar **429** `RATE_LIMITED` (`RATE_LIMIT_IP_MAX=40`); el contrato se prueba entero en local.
+Health, register, login, 401, 404 de ruta y JSON inválido van con `noauth` cuando corresponde. GET/list no filtran `payload` ni ciphertext. PATCH no rota el secreto. Un segundo usuario recibe **404**, no 403. El TTL espera ~3 s.
 
-La collection envía `Authorization: Bearer {{accessToken}}` en vault y me. Health, register, login, 401, 404 de ruta y JSON inválido van con `noauth` cuando corresponde.
-
-Los tests comprueban status y `error.code`, que GET/list no filtren `payload` ni ciphertext, que PATCH no rote el secreto ni la versión, que un segundo usuario reciba **404** (no 403), paginación `limit`/`offset` en list y audit, y que reveal/verify desencripten el valor esperado. El caso TTL espera ~3 s a que venza `expiresAt`.
-
-El re-wrap de DEKs (`npm run rewrap-keys`) no está en Postman: es un CLI de operador, no un endpoint.
-
-Si el Runner dice **Environment: none**, está bien: `environment=local` o `production` en la collection.
+`npm run rewrap-keys` no está en Postman: es CLI de operador.
 
 ## 📝 Ejemplos de uso
+
+Los mismos bodies y paths contra local o contra Render. En Postman no hace falta copiar curl: Import de la collection y `environment` = `local` o `production`.
 
 ### Ejemplo 1: curl
 
 ```bash
+# Local (después de npm run server)
 export BASE="http://localhost:3000"
+
+# Production — misma API en Render (la primera pega puede tardar ~1 min)
+# export BASE="https://bgvault.onrender.com"
+
+# Índice
+curl -s "$BASE/"
 
 # Salud (X-Request-Id en header y body)
 curl -si "$BASE/health" -H "X-Request-Id: demo-req-0001"
@@ -1205,7 +1150,9 @@ curl -s -X DELETE "$BASE/api/credentials/<id>" \
 curl -s -X POST "$BASE/api/auth/logout" -H "$AUTH"
 ```
 
-### Ejemplo 2: scripts npm
+### Ejemplo 2: scripts npm (local)
+
+Los `client:*` pegan a `http://localhost:3000`. Para Render usá Postman (`environment=production`) o el curl con `BASE=https://bgvault.onrender.com`.
 
 ```bash
 npm run setup-env

@@ -1,6 +1,6 @@
 # Demo pública Render Free (SQLite efímera).
 # New → Blueprint → este repo  ·  o Web Service + plan Free
-# https://render.com/docs/blueprint-spec
+# Rate limits de production van acá (el .env es solo local).
 
 services:
   - type: web
