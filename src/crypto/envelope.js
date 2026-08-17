@@ -48,31 +48,89 @@ function decryptWithDek(blob, dek, aad) {
   return decrypted;
 }
 
+function currentKek() {
+  return process.env.ENCRYPTION_KEY;
+}
+
+function nextKek() {
+  const next = process.env.ENCRYPTION_KEY_NEXT;
+  if (!next || next === currentKek()) return null;
+  return next;
+}
+
+function wrappingKek() {
+  return nextKek() || currentKek();
+}
+
+function kekCandidates() {
+  return [currentKek(), nextKek()].filter(Boolean);
+}
+
+function decryptWithKek(blob, aad) {
+  let lastError;
+  for (const key of kekCandidates()) {
+    try {
+      return decrypt(blob, key, aad);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error('No se pudo abrir con las KEK disponibles');
+}
+
+function parseDek(dekHex) {
+  const dek = Buffer.from(dekHex, 'hex');
+  if (dek.length !== DEK_BYTES) {
+    throw new Error('DEK inválida');
+  }
+  return dek;
+}
+
 function seal(plain, { id, type, version }) {
   const dek = generateDek();
   const aad = payloadAad(id, type, version);
   const ciphertext = encryptWithDek(plain, dek, aad);
-  const wrappedDek = encrypt(dek.toString('hex'), undefined, dekAad(id, version));
+  const wrappedDek = encrypt(dek.toString('hex'), wrappingKek(), dekAad(id, version));
   return { ciphertext, wrappedDek };
 }
 
 function open({ ciphertext, wrappedDek, id, type, version }) {
   const aad = payloadAad(id, type, version);
   if (!wrappedDek) {
-    return decrypt(ciphertext, undefined, aad);
+    return decryptWithKek(ciphertext, aad);
   }
 
-  const dekHex = decrypt(wrappedDek, undefined, dekAad(id, version));
-  const dek = Buffer.from(dekHex, 'hex');
-  if (dek.length !== DEK_BYTES) {
-    throw new Error('DEK inválida');
+  const dekHex = decryptWithKek(wrappedDek, dekAad(id, version));
+  return decryptWithDek(ciphertext, parseDek(dekHex), aad);
+}
+
+function tryRewrapWrappedDek(wrappedDek, { id, version }) {
+  const next = nextKek();
+  if (!next) {
+    throw new Error('Falta ENCRYPTION_KEY_NEXT');
   }
-  return decryptWithDek(ciphertext, dek, aad);
+
+  const aad = dekAad(id, version);
+  try {
+    const dekHex = decrypt(wrappedDek, currentKek(), aad);
+    parseDek(dekHex);
+    return { status: 'rewrapped', wrappedDek: encrypt(dekHex, next, aad) };
+  } catch {
+    try {
+      parseDek(decrypt(wrappedDek, next, aad));
+      return { status: 'already' };
+    } catch {
+      return { status: 'failed' };
+    }
+  }
 }
 
 module.exports = {
   seal,
   open,
+  tryRewrapWrappedDek,
+  nextKek,
+  wrappingKek,
   payloadAad,
   CIPHER_PREFIX,
   DEK_BYTES,

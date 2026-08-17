@@ -53,6 +53,9 @@ app.listen(PORT, () => {
   console.log(`BGVault corriendo en http://localhost:${PORT}`);
   console.log('Auth: JWT Bearer (POST /api/auth/register o /api/auth/login)');
   console.log(`SQLite: ${sqlite.resolveDbPath()}`);
+  if (process.env.ENCRYPTION_KEY_NEXT) {
+    console.log('KEK: ENCRYPTION_KEY_NEXT definida — seal usa la clave nueva; open acepta ambas. Corré npm run rewrap-keys y después promové las claves.');
+  }
 });
 
 module.exports = app;

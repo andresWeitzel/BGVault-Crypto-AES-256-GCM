@@ -9,6 +9,7 @@ router.get('/', credentialController.listCredentials);
 router.get('/:id/versions', credentialController.listVersions);
 router.post('/:id/rotate', credentialController.rotateCredential);
 router.get('/:id', credentialController.getCredential);
+router.patch('/:id', credentialController.patchCredential);
 router.post('/:id/reveal', limitReveal, credentialController.revealCredential);
 router.post('/:id/verify', limitReveal, credentialController.verifyCredential);
 router.delete('/:id', credentialController.deleteCredential);

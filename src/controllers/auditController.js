@@ -1,14 +1,20 @@
 const auditStore = require('../store/auditStore');
-const { sendOk } = require('../http/respond');
+const { sendOk, sendValidation } = require('../http/respond');
+const { parsePaging } = require('../http/paging');
 
 function listAudit(req, res) {
-  const { action, credentialId, limit, offset } = req.query;
+  const { action, credentialId } = req.query;
+  const paging = parsePaging(req.query);
+  if (paging.error) {
+    return sendValidation(res, paging.error);
+  }
+
   const result = auditStore.list({
     userId: req.user.id,
     action,
     credentialId,
-    limit,
-    offset,
+    limit: paging.limit,
+    offset: paging.offset,
   });
 
   return sendOk(res, 200, {

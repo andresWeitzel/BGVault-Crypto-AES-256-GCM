@@ -20,8 +20,8 @@ function append({ action, userId = null, credentialId = null, version = null, ok
 }
 
 function list({ userId, action, credentialId, limit = 50, offset = 0 } = {}) {
-  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  const safeOffset = Math.max(Number(offset) || 0, 0);
+  const safeLimit = limit;
+  const safeOffset = offset;
 
   let sql = `
     SELECT id, at, action, user_id, credential_id, version, ok, detail

@@ -17,9 +17,11 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **Persistencia SQLite**: las credenciales y versiones sobreviven al reinicio (`node:sqlite`, sin ORM)
 - ✅ **TTL y one-time reveal**: `expiresAt` y `maxReveals` por versión; reveal/verify vencidos o agotados responden **410** sin desencriptar
 - ✅ **Versionado y rotación**: cada cambio de payload crea una versión nueva; la anterior sigue revelable
-- ✅ **Auditoría**: generate, create, get, reveal, verify, rotate, delete y versions quedan en `audit_events` (sin plaintext)
+- ✅ **Auditoría**: generate, create, get, patch, reveal, verify, rotate, delete y versions quedan en `audit_events` (sin plaintext)
 - ✅ **IDs UUID**: se abandonó el `index` numérico; cada credencial tiene identidad estable
-- ✅ **Metadatos en claro, payload cifrado**: `name`, `service` y `tags` se pueden filtrar; la clave/contraseña no aparece en GET
+- ✅ **Metadatos en claro, payload cifrado**: `name`, `service` y `tags` se pueden filtrar y **editar con PATCH**; la clave/contraseña no aparece en GET
+- ✅ **Listados paginados**: `GET /api/credentials` y `GET /api/audit` usan `limit` (máx. 200) y `offset`
+- ✅ **Rotación de KEK**: `ENCRYPTION_KEY_NEXT` + `npm run rewrap-keys` reenvuelve `wrapped_dek` sin tocar el payload
 - ✅ **Autenticación JWT**: `POST /api/auth/register` y `/login` emiten un Bearer HS256 (HMAC nativo); el hash de la cuenta es **scrypt**, no bcrypt
 - ✅ **Aislamiento por usuario**: cada credencial y cada evento de auditoría pertenece a un `user_id`; un JWT ajeno recibe 404, no 403
 - ✅ **Sobre JSON uniforme**: éxitos llevan `requestId` + `timestamp`; errores son `{ error: { code, message }, requestId, timestamp }`
@@ -31,7 +33,7 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 
 Las cuentas viven en la tabla `users`. Versiones antiguas sin `wrapped_dek` se siguen revelando con el cifrado directo (legado).
 
-Rotación de `ENCRYPTION_KEY` (re-wrap de DEKs) queda para más adelante.
+Para rotar `ENCRYPTION_KEY` sin re-cifrar payloads: definí `ENCRYPTION_KEY_NEXT`, corré `npm run rewrap-keys`, copiá la clave nueva sobre `ENCRYPTION_KEY` y borré `NEXT`. Mientras `NEXT` esté definida, `seal` usa esa clave y `open` acepta ambas.
 
 ## 🛠️ Tecnologías
 
@@ -59,6 +61,7 @@ npm run server
 |----------|-----|
 | `PORT` | Puerto HTTP (por defecto `3000`) |
 | `ENCRYPTION_KEY` | Clave maestra de cifrado (≥ 32 caracteres, aleatoria) |
+| `ENCRYPTION_KEY_NEXT` | KEK nueva opcional; con ella activa, `seal` usa NEXT y `open` acepta ambas |
 | `JWT_SECRET` | Firma HMAC-SHA256 de los tokens (distinta de `ENCRYPTION_KEY`) |
 | `JWT_EXPIRES_IN` | Segundos de vida del JWT (por defecto `28800` = 8 h; min 60, máx 7 días) |
 | `SQLITE_PATH` | Ruta del archivo SQLite (por defecto `data/bgvault.sqlite`) |
@@ -131,6 +134,7 @@ Auth: JWT Bearer (POST /api/auth/register o /api/auth/login)
 | `npm run client:post` | Registra/loguea `demo@bgvault.local` y crea una credencial `password` |
 | `npm run client:get` | Lista credenciales del usuario demo (solo metadatos) |
 | `npm run decrypt-env` | Muestra variables `*_ENCRYPTED` del `.env`, si existen |
+| `npm run rewrap-keys` | Reenvuelve `wrapped_dek` con `ENCRYPTION_KEY_NEXT` (no toca el payload) |
 
 ## 🔑 Autenticación
 
@@ -146,7 +150,7 @@ Sin header, con un token inválido, expirado o de un usuario borrado: **401** `U
 
 El JWT es **HS256** firmado con `JWT_SECRET` (`node:crypto.createHmac`). La contraseña de la cuenta se guarda con **scrypt** (`N=16384, r=8, p=1`); nunca viaja de vuelta en JSON. Un login fallido responde **401** `INVALID_CREDENTIALS` (no dice si el email existe).
 
-Un usuario **no ve** las credenciales de otro: list, get, reveal, rotate y audit filtran por `user_id`. Si el id existe pero es de otro dueño, la API responde **404** (no 403), para no filtrar existencia.
+Un usuario **no ve** las credenciales de otro: list, get, patch, reveal, rotate y audit filtran por `user_id`. Si el id existe pero es de otro dueño, la API responde **404** (no 403), para no filtrar existencia.
 
 ## 📦 Contrato de respuesta
 
@@ -439,6 +443,7 @@ Devuelve solo metadatos. Se puede filtrar.
 **GET** `/api/credentials`  
 **GET** `/api/credentials?type=password`  
 **GET** `/api/credentials?service=Gmail`  
+**GET** `/api/credentials?limit=50&offset=0`  
 **Auth:** requerida
 
 **Query:**
@@ -447,6 +452,8 @@ Devuelve solo metadatos. Se puede filtrar.
 |-------|-------------|
 | `type` | Filtra por tipo |
 | `service` | Filtra por servicio (match exacto) |
+| `limit` | Tamaño de página (1–200, por defecto 50) |
+| `offset` | Desde qué registro (por defecto 0) |
 
 **Respuesta 200:**
 ```json
@@ -463,6 +470,8 @@ Devuelve solo metadatos. Se puede filtrar.
     }
   ],
   "count": 1,
+  "limit": 50,
+  "offset": 0,
   "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
@@ -515,7 +524,53 @@ Otros tipos de ejemplo para crear:
 
 ---
 
-### 9. Revelar credencial (POST)
+### 9. Editar metadatos (PATCH)
+
+Cambia `name`, `service` o `tags` **sin** rotar el payload ni incrementar la versión. `type`, `expiresAt` y `maxReveals` no se editan acá: el tipo es inmutable y el ciclo de vida se hereda o se cambia en **rotate**.
+
+**PATCH** `/api/credentials/:id`  
+**Auth:** requerida
+
+**Body** (al menos un campo):
+```json
+{
+  "name": "Gmail trabajo",
+  "service": "Google Workspace",
+  "tags": ["email", "trabajo"]
+}
+```
+
+`service: null` (o `""`) limpia el servicio. `tags: []` deja la credencial sin tags.
+
+**Respuesta 200:**
+```json
+{
+  "message": "Metadatos actualizados",
+  "credential": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "type": "password",
+    "name": "Gmail trabajo",
+    "service": "Google Workspace",
+    "tags": ["email", "trabajo"],
+    "currentVersion": 1
+  },
+  "timestamp": "2026-08-16T01:40:00.000Z"
+}
+```
+
+La respuesta **nunca** incluye `payload` ni ciphertext. La versión no cambia.
+
+**Errores:**
+
+| Status | Cuándo |
+|--------|--------|
+| 400 | `VALIDATION` — body vacío, campos extra (`payload`, `type`, …), `name` vacío, `tags` mal formados |
+| 401 | `UNAUTHORIZED` — sin JWT |
+| 404 | `CREDENTIAL_NOT_FOUND` — id inexistente o de otro usuario |
+
+---
+
+### 10. Revelar credencial (POST)
 
 Desencripta el payload y lo devuelve. Es **POST** a propósito: el valor no queda en access logs de query string.
 
@@ -553,7 +608,7 @@ GET/list de una versión quemada o vencida siguen devolviendo metadatos (`expire
 
 ---
 
-### 10. Verificar una contraseña
+### 11. Verificar una contraseña
 
 Compara un candidato contra el payload almacenado. **Solo aplica a `type=password`**.
 
@@ -602,7 +657,7 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 
 ---
 
-### 11. Eliminar credencial
+### 12. Eliminar credencial
 
 **DELETE** `/api/credentials/:id`  
 **Auth:** requerida
@@ -620,7 +675,7 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 
 ---
 
-### 12. Rotar credencial (nueva versión)
+### 13. Rotar credencial (nueva versión)
 
 Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones anteriores. El tipo no cambia. `expiresAt` y `maxReveals` de la versión nueva se **heredan** de la actual salvo que los mandes (o `null` para ilimitado). `revealCount` de la versión nueva arranca en 0.
 
@@ -659,7 +714,7 @@ Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones
 
 ---
 
-### 13. Listar versiones
+### 14. Listar versiones
 
 Devuelve el historial **sin** ciphertext ni plaintext.
 
@@ -699,7 +754,7 @@ Devuelve el historial **sin** ciphertext ni plaintext.
 
 ---
 
-### 14. Revelar una versión concreta
+### 15. Revelar una versión concreta
 
 El reveal usa la versión actual si no mandás `version`. El número de versión va en el **body**, no en la URL.
 
@@ -718,9 +773,9 @@ Verify también acepta `"version": 1` opcional (por defecto, la actual).
 
 ---
 
-### 15. Auditoría
+### 16. Auditoría
 
-Lista eventos de register, login, generate, create, get, reveal, verify, rotate, delete y versions **del usuario autenticado**. **Nunca** guarda plaintext, ciphertext ni DEKs.
+Lista eventos de register, login, generate, create, get, patch, reveal, verify, rotate, delete y versions **del usuario autenticado**. **Nunca** guarda plaintext, ciphertext ni DEKs.
 
 **GET** `/api/audit`  
 **GET** `/api/audit?action=rotate`  
@@ -757,7 +812,7 @@ Lista eventos de register, login, generate, create, get, reveal, verify, rotate,
 
 | Código | Significado |
 |--------|-------------|
-| 200 | Login, me, generate, listar, get, versions, reveal, verify, rotate, delete, audit |
+| 200 | Login, me, generate, listar, get, patch, versions, reveal, verify, rotate, delete, audit |
 | 201 | Usuario o credencial creados |
 | 400 | Validación (email, password de cuenta, tipo, name, payload, expiresAt, maxReveals, verify sobre no-password) |
 | 401 | JWT ausente, inválido, expirado; o login con credenciales incorrectas |
@@ -768,7 +823,7 @@ Lista eventos de register, login, generate, create, get, reveal, verify, rotate,
 
 ## 🧪 Collection de Postman
 
-La collection **Crypto AES-256-GCM Vault** cubre el contrato: Health, Auth, Generate, Create, Isolation, Reveal, Lifecycle (one-time y 410), verify, rotación, historial, auditoría y delete.
+La collection **Crypto AES-256-GCM Vault** cubre el contrato con `pm.test` en cada request: Health (+ `X-Request-Id`), Auth (401/400/409), Generate, Create, list/paginación, PATCH de metadatos, aislamiento, Reveal, Lifecycle (one-time `REVEAL_LIMIT` y TTL `CREDENTIAL_EXPIRED`), verify, rotación, auditoría paginada y delete.
 
 Archivo: `collections/bgvault.postman_collection.json`  
 El `_postman_id` se mantiene fijo para que reimportar **actualice** la collection y no abra otra.
@@ -780,9 +835,11 @@ El `_postman_id` se mantiene fijo para que reimportar **actualice** la collectio
 3. **Runner** → **Run collection** (en orden). Auth registra `demo@bgvault.local` (o hace login si ya existe) y guarda `accessToken`
 4. Guardá (Ctrl+S) si Postman te pide persistir variables
 
-La collection envía `Authorization: Bearer {{accessToken}}` en vault y me. Health, register, login y los 401 van con `noauth`.
+La collection envía `Authorization: Bearer {{accessToken}}` en vault y me. Health, register, login, 401, 404 de ruta y JSON inválido van con `noauth` cuando corresponde.
 
-Los tests comprueban status, que GET/list no filtren `payload` ni ciphertext, que un segundo usuario no vea credenciales ajenas, y que reveal/verify desencripten el valor esperado.
+Los tests comprueban status y `error.code`, que GET/list no filtren `payload` ni ciphertext, que PATCH no rote el secreto ni la versión, que un segundo usuario reciba **404** (no 403), paginación `limit`/`offset` en list y audit, y que reveal/verify desencripten el valor esperado. El caso TTL espera ~3 s a que venza `expiresAt`.
+
+El re-wrap de DEKs (`npm run rewrap-keys`) no está en Postman: es un CLI de operador, no un endpoint.
 
 Si el Runner dice **Environment: none**, está bien: el token se guarda en **variables de la collection**.
 
@@ -829,10 +886,16 @@ curl -s -X POST "$BASE/api/credentials" \
   }'
 
 # Listar (sin plaintext)
-curl -s "$BASE/api/credentials" -H "$AUTH"
+curl -s "$BASE/api/credentials?limit=50&offset=0" -H "$AUTH"
 
 # Filtrar
 curl -s "$BASE/api/credentials?type=password" -H "$AUTH"
+
+# Editar metadatos (no toca el payload)
+curl -s -X PATCH "$BASE/api/credentials/<id>" \
+  -H "Content-Type: application/json" \
+  -H "$AUTH" \
+  -d '{"name":"Gmail trabajo","tags":["email","trabajo"]}'
 
 # Revelar (reemplazá el id)
 curl -s -X POST "$BASE/api/credentials/<id>/reveal" \
@@ -886,6 +949,7 @@ npm run setup-env
 npm run server          # en otra terminal
 npm run client:post     # crea una credencial password de demo
 npm run client:get      # lista metadatos
+npm run rewrap-keys     # solo con ENCRYPTION_KEY_NEXT definida
 npm run decrypt-env     # solo si hay *_ENCRYPTED en .env
 ```
 
@@ -895,7 +959,7 @@ npm run decrypt-env     # solo si hay *_ENCRYPTED en .env
 bgvault/
 ├── src/
 │   ├── config/
-│   │   └── env.js                   # Carga .env y valida ENCRYPTION_KEY / JWT_SECRET
+│   │   └── env.js                   # Carga .env y valida ENCRYPTION_KEY / JWT_SECRET / NEXT
 │   ├── auth/
 │   │   ├── password.js              # scrypt (hash / verify)
 │   │   └── jwt.js                   # JWT HS256 nativo
@@ -904,7 +968,8 @@ bgvault/
 │   │   ├── requestId.js             # X-Request-Id (UUID o correlacioná el tuyo)
 │   │   └── rateLimit.js             # tope in-memory (auth + reveal)
 │   ├── http/
-│   │   └── respond.js               # envelope { error: { code, message } }
+│   │   ├── respond.js               # envelope { error: { code, message } }
+│   │   └── paging.js                # limit/offset (list y audit)
 │   ├── db/
 │   │   └── sqlite.js                # node:sqlite, schema, WAL, migrate user_id / wrapped_dek / TTL
 │   ├── store/
@@ -914,11 +979,11 @@ bgvault/
 │   ├── controllers/
 │   │   ├── authController.js        # register, login, me
 │   │   ├── generateController.js    # POST /api/generate
-│   │   ├── credentialController.js  # CRUD, reveal, verify, rotate, versions
+│   │   ├── credentialController.js  # CRUD, patch, reveal, verify, rotate, versions
 │   │   └── auditController.js
 │   ├── crypto/
 │   │   ├── lib.js                   # encrypt / decrypt AES-256-GCM + AAD (wrap de DEK)
-│   │   ├── envelope.js              # seal / open con DEK por versión
+│   │   ├── envelope.js              # seal / open / rewrap de DEK por versión
 │   │   ├── generate.js              # CSPRNG passwords / api_key / token
 │   │   └── crypto-cli.js            # CLI: cifrar / descifrar un valor
 │   ├── routes/
@@ -929,6 +994,7 @@ bgvault/
 │   ├── server.js                    # Express, headers, 404/JSON inválido
 │   └── setup/
 │       ├── setup-env.js             # Genera o completa .env
+│       ├── rewrap-keys.js           # Reenvuelve DEKs con ENCRYPTION_KEY_NEXT
 │       └── decrypt-env.js           # Muestra *_ENCRYPTED
 ├── data/
 │   └── .gitkeep                     # bgvault.sqlite (gitignored)
@@ -997,7 +1063,7 @@ Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 | Pieza | Detalle |
 |-------|---------|
 | Payload | AES-256-GCM con **DEK aleatoria** de 32 bytes (`dek:iv:tag:ciphertext`) |
-| Wrap de DEK | AES-256-GCM + PBKDF2 sobre `ENCRYPTION_KEY` (`salt:iv:tag:encrypted`) |
+| Wrap de DEK | AES-256-GCM + PBKDF2 sobre `ENCRYPTION_KEY` (o `ENCRYPTION_KEY_NEXT` si está definida) |
 | AAD payload | `credential:<id>:<type>:<version>` |
 | AAD DEK | `dek:<id>:<version>` |
 | Legado | versiones sin `wrapped_dek` se abren con `lib.decrypt` directo |
@@ -1022,19 +1088,29 @@ Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 | Comparación | `timingSafeEqual` en firma y en hash |
 | Aislamiento | `credentials.user_id` y `audit_events.user_id` |
 
+### Rotación de `ENCRYPTION_KEY`
+
+El payload nunca se re-cifra. Solo se vuelve a envolver la DEK (`wrapped_dek`).
+
+1. Generá una clave nueva (≥ 32 caracteres) y definí `ENCRYPTION_KEY_NEXT` en `.env`
+2. Reiniciá el servidor (queda aceptando ambas KEK; los `seal` nuevos ya usan NEXT)
+3. `npm run rewrap-keys` — reescribe `wrapped_dek` con la clave nueva
+4. Copiá `ENCRYPTION_KEY_NEXT` sobre `ENCRYPTION_KEY`, borré `NEXT`, reiniciá
+
+Versiones legado (sin `wrapped_dek`) no se reenvuelven: rotá esas credenciales primero para pasarlas a envelope. `open` prueba `ENCRYPTION_KEY` y, si está, `ENCRYPTION_KEY_NEXT`.
+
 ### Recomendaciones
 
 1. **Claves**: `ENCRYPTION_KEY` y `JWT_SECRET` ≥ 32 caracteres, **distintos**, nunca en el código
 2. **`.env`**: fuera de git
 3. **HTTPS** en cualquier red que no sea loopback
 4. **Cuentas**: no reutilices `demo@bgvault.local` fuera de desarrollo
-5. **Producción**: rotá `JWT_SECRET` si se filtra (invalida todas las sesiones)
+5. **Producción**: rotá `JWT_SECRET` si se filtra (invalida todas las sesiones); rotá `ENCRYPTION_KEY` con el flujo de `ENCRYPTION_KEY_NEXT`
 
 ## ⚠️ Limitaciones
 
 - **JWT sin refresh/revocación**: el token vale hasta `exp`; borrar el usuario invalida `me` y el vault en el acto, pero un JWT ya emitido sigue verificándose hasta que el `sub` desaparece
-- **Sin roles/admin**: todos los usuarios son dueños de su vault; no hay sharing
-- **Sin re-wrap de DEK**: cambiar `ENCRYPTION_KEY` no rota las DEKs ya envueltas; las versiones nuevas usan la clave actual
+- **Sin roles/admin**: todos los usuarios son dueños de su vault; no hay sharing. El re-wrap es un CLI de operador, no un endpoint de usuario
 - **SQLite local**: un proceso, un archivo; no está pensado para un clúster
 - Pensado como vault profesional de desarrollo y base de un producto, no como HSM de producción
 
