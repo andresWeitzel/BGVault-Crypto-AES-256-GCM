@@ -3,6 +3,7 @@ const auditStore = require('../store/auditStore');
 function listAudit(req, res) {
   const { action, credentialId, limit, offset } = req.query;
   const result = auditStore.list({
+    userId: req.user.id,
     action,
     credentialId,
     limit,

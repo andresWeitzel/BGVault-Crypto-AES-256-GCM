@@ -269,23 +269,45 @@ else
     exit 1
 fi
 
-if [ -z "$API_KEY" ]; then
-    echo -e "${YELLOW}⚠ Falta API_KEY en .env${NC}" >&2
-    echo -e "${BLUE}   Ejecuta: npm run setup-env${NC}" >&2
-    exit 1
-fi
-
+AUTH_EMAIL="${AUTH_EMAIL:-demo@bgvault.local}"
+AUTH_PASSWORD="${AUTH_PASSWORD:-bgvault-dev-password}"
 PASSWORD="${PASSWORD:-demo-password}"
 USERNAME="${USERNAME:-demo-user}"
 SERVICE="${SERVICE:-demo-service}"
 
+extract_token() {
+    echo "$1" | python -c "import sys,json; print(json.load(sys.stdin).get('accessToken',''))" 2>/dev/null
+}
+
+ensure_token() {
+    curl -s -o /dev/null \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"email\":\"${AUTH_EMAIL}\",\"password\":\"${AUTH_PASSWORD}\"}" \
+        "${SERVER_URL}/api/auth/register" >/dev/null 2>&1
+
+    local login_body
+    login_body=$(curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"email\":\"${AUTH_EMAIL}\",\"password\":\"${AUTH_PASSWORD}\"}" \
+        "${SERVER_URL}/api/auth/login")
+
+    ACCESS_TOKEN=$(extract_token "$login_body")
+    if [ -z "$ACCESS_TOKEN" ]; then
+        echo -e "${YELLOW}⚠ No se pudo iniciar sesión${NC}" >&2
+        echo "$login_body" >&2
+        exit 1
+    fi
+}
+
 # Función para hacer GET request
 get_passwords() {
+    ensure_token
     echo -e "${BLUE}Listando credenciales: ${SERVER_URL}/api/credentials${NC}"
     echo ""
     
     response=$(curl -s -w "\n%{http_code}" \
-        -H "X-API-Key: ${API_KEY}" \
+        -H "Authorization: Bearer ${ACCESS_TOKEN}" \
         "${SERVER_URL}/api/credentials")
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
@@ -316,11 +338,13 @@ post_password() {
     
     echo -e "${BLUE}Creando credencial en: ${SERVER_URL}/api/credentials${NC}"
     echo ""
+
+    ensure_token
     
     response=$(curl -s -w "\n%{http_code}" \
         -X POST \
         -H "Content-Type: application/json" \
-        -H "X-API-Key: ${API_KEY}" \
+        -H "Authorization: Bearer ${ACCESS_TOKEN}" \
         -d "$data" \
         "${SERVER_URL}/api/credentials")
     
@@ -355,7 +379,7 @@ case "$1" in
         echo "  npm run client:post"
         echo "  npm run client:get"
         echo ""
-        echo "Requiere .env con API_KEY (npm run setup-env)"
+        echo "Requiere un usuario. El script registra/loguea ${AUTH_EMAIL} si hace falta."
         exit 1
         ;;
 esac
