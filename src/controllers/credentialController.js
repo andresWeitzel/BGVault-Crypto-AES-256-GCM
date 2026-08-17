@@ -26,9 +26,13 @@ function toPublic(credential) {
   };
 }
 
-function audit({ action, credentialId = null, version = null, ok, detail = null, at }) {
+function ownerId(req) {
+  return req.user.id;
+}
+
+function audit({ action, userId = null, credentialId = null, version = null, ok, detail = null, at }) {
   try {
-    auditStore.append({ action, credentialId, version, ok, detail, at: at || now() });
+    auditStore.append({ action, userId, credentialId, version, ok, detail, at: at || now() });
   } catch (error) {
     console.error('Error al registrar auditoría:', error.message);
   }
@@ -86,9 +90,9 @@ function decryptPayload(credential) {
   );
 }
 
-function resolveRecord(id, requestedVersion) {
-  if (requestedVersion == null) return store.findById(id);
-  return store.findByIdAndVersion(id, requestedVersion);
+function resolveRecord(id, requestedVersion, userId) {
+  if (requestedVersion == null) return store.findById(id, userId);
+  return store.findByIdAndVersion(id, requestedVersion, userId);
 }
 
 function createCredential(req, res) {
@@ -126,6 +130,7 @@ function createCredential(req, res) {
     const id = crypto.randomUUID();
     const record = {
       id,
+      userId: ownerId(req),
       type,
       name: name.trim(),
       service: service && String(service).trim() ? String(service).trim() : null,
@@ -138,6 +143,7 @@ function createCredential(req, res) {
     store.create(record);
     audit({
       action: 'create',
+      userId: record.userId,
       credentialId: id,
       version: 1,
       ok: true,
@@ -168,7 +174,7 @@ function listCredentials(req, res) {
     });
   }
 
-  const credentials = store.list({ type, service }).map(toPublic);
+  const credentials = store.list({ userId: ownerId(req), type, service }).map(toPublic);
   return res.json({
     credentials,
     count: credentials.length,
@@ -177,9 +183,15 @@ function listCredentials(req, res) {
 }
 
 function getCredential(req, res) {
-  const credential = store.findById(req.params.id);
+  const credential = store.findById(req.params.id, ownerId(req));
   if (!credential) {
-    audit({ action: 'get', credentialId: req.params.id, ok: false, detail: { reason: 'not_found' } });
+    audit({
+      action: 'get',
+      userId: ownerId(req),
+      credentialId: req.params.id,
+      ok: false,
+      detail: { reason: 'not_found' },
+    });
     return res.status(404).json({
       error: 'Credencial no encontrada',
       timestamp: now(),
@@ -188,6 +200,7 @@ function getCredential(req, res) {
 
   audit({
     action: 'get',
+    userId: ownerId(req),
     credentialId: credential.id,
     version: credential.currentVersion,
     ok: true,
@@ -199,7 +212,7 @@ function getCredential(req, res) {
 }
 
 function listVersions(req, res) {
-  const history = store.listVersions(req.params.id);
+  const history = store.listVersions(req.params.id, ownerId(req));
   if (!history) {
     return res.status(404).json({
       error: 'Credencial no encontrada',
@@ -209,6 +222,7 @@ function listVersions(req, res) {
 
   audit({
     action: 'versions',
+    userId: ownerId(req),
     credentialId: history.id,
     version: history.currentVersion,
     ok: true,
@@ -231,19 +245,26 @@ function revealCredential(req, res) {
     });
   }
 
-  const exists = store.exists(req.params.id);
+  const exists = store.exists(req.params.id, ownerId(req));
   if (!exists) {
-    audit({ action: 'reveal', credentialId: req.params.id, ok: false, detail: { reason: 'not_found' } });
+    audit({
+      action: 'reveal',
+      userId: ownerId(req),
+      credentialId: req.params.id,
+      ok: false,
+      detail: { reason: 'not_found' },
+    });
     return res.status(404).json({
       error: 'Credencial no encontrada',
       timestamp,
     });
   }
 
-  const credential = resolveRecord(req.params.id, requestedVersion);
+  const credential = resolveRecord(req.params.id, requestedVersion, ownerId(req));
   if (!credential) {
     audit({
       action: 'reveal',
+      userId: ownerId(req),
       credentialId: req.params.id,
       version: requestedVersion,
       ok: false,
@@ -259,6 +280,7 @@ function revealCredential(req, res) {
     const payload = decryptPayload(credential);
     audit({
       action: 'reveal',
+      userId: ownerId(req),
       credentialId: credential.id,
       version: credential.version,
       ok: true,
@@ -284,16 +306,22 @@ function revealCredential(req, res) {
 
 function verifyCredential(req, res) {
   const timestamp = now();
-  const exists = store.exists(req.params.id);
+  const exists = store.exists(req.params.id, ownerId(req));
   if (!exists) {
-    audit({ action: 'verify', credentialId: req.params.id, ok: false, detail: { reason: 'not_found' } });
+    audit({
+      action: 'verify',
+      userId: ownerId(req),
+      credentialId: req.params.id,
+      ok: false,
+      detail: { reason: 'not_found' },
+    });
     return res.status(404).json({
       error: 'Credencial no encontrada',
       timestamp,
     });
   }
 
-  const meta = store.findById(req.params.id);
+  const meta = store.findById(req.params.id, ownerId(req));
   if (meta.type !== 'password') {
     return res.status(400).json({
       error: 'verify solo aplica a credenciales de tipo password',
@@ -309,7 +337,7 @@ function verifyCredential(req, res) {
     });
   }
 
-  const credential = resolveRecord(req.params.id, requestedVersion);
+  const credential = resolveRecord(req.params.id, requestedVersion, ownerId(req));
   if (!credential) {
     return res.status(404).json({
       error: 'Versión no encontrada',
@@ -337,6 +365,7 @@ function verifyCredential(req, res) {
 
     audit({
       action: 'verify',
+      userId: ownerId(req),
       credentialId: credential.id,
       version: credential.version,
       ok: isValid,
@@ -362,9 +391,15 @@ function verifyCredential(req, res) {
 
 function rotateCredential(req, res) {
   const timestamp = now();
-  const credential = store.findById(req.params.id);
+  const credential = store.findById(req.params.id, ownerId(req));
   if (!credential) {
-    audit({ action: 'rotate', credentialId: req.params.id, ok: false, detail: { reason: 'not_found' } });
+    audit({
+      action: 'rotate',
+      userId: ownerId(req),
+      credentialId: req.params.id,
+      ok: false,
+      detail: { reason: 'not_found' },
+    });
     return res.status(404).json({
       error: 'Credencial no encontrada',
       timestamp,
@@ -384,9 +419,10 @@ function rotateCredential(req, res) {
       req.body.payload,
       nextVersion,
     );
-    const rotated = store.rotate(credential.id, { ciphertext, timestamp });
+    const rotated = store.rotate(credential.id, ownerId(req), { ciphertext, timestamp });
     audit({
       action: 'rotate',
+      userId: ownerId(req),
       credentialId: credential.id,
       version: rotated.currentVersion,
       ok: true,
@@ -408,10 +444,16 @@ function rotateCredential(req, res) {
 }
 
 function deleteCredential(req, res) {
-  const existing = store.findById(req.params.id);
-  const deleted = store.remove(req.params.id);
+  const existing = store.findById(req.params.id, ownerId(req));
+  const deleted = store.remove(req.params.id, ownerId(req));
   if (!deleted) {
-    audit({ action: 'delete', credentialId: req.params.id, ok: false, detail: { reason: 'not_found' } });
+    audit({
+      action: 'delete',
+      userId: ownerId(req),
+      credentialId: req.params.id,
+      ok: false,
+      detail: { reason: 'not_found' },
+    });
     return res.status(404).json({
       error: 'Credencial no encontrada',
       timestamp: now(),
@@ -420,6 +462,7 @@ function deleteCredential(req, res) {
 
   audit({
     action: 'delete',
+    userId: ownerId(req),
     credentialId: req.params.id,
     version: existing?.currentVersion ?? null,
     ok: true,

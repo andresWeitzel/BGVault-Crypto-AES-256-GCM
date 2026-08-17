@@ -4,7 +4,7 @@ const path = require('node:path');
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const ENV_FILE = path.join(PROJECT_ROOT, '.env');
 const MIN_KEY_LENGTH = 32;
-const MIN_API_KEY_LENGTH = 16;
+const MIN_JWT_SECRET_LENGTH = 32;
 const INSECURE_DEFAULT = 'default-key-change-me-in-production-32chars!!';
 
 function parseEnvLine(line) {
@@ -38,7 +38,7 @@ function loadEnvFile(filePath = ENV_FILE) {
 
 function validateEnvConfig() {
   const encryptionKey = process.env.ENCRYPTION_KEY;
-  const apiKey = process.env.API_KEY;
+  const jwtSecret = process.env.JWT_SECRET;
   const errors = [];
 
   if (!encryptionKey) {
@@ -49,10 +49,10 @@ function validateEnvConfig() {
     errors.push(`ENCRYPTION_KEY debe tener al menos ${MIN_KEY_LENGTH} caracteres`);
   }
 
-  if (!apiKey) {
-    errors.push('Falta API_KEY');
-  } else if (apiKey.length < MIN_API_KEY_LENGTH) {
-    errors.push(`API_KEY debe tener al menos ${MIN_API_KEY_LENGTH} caracteres`);
+  if (!jwtSecret) {
+    errors.push('Falta JWT_SECRET');
+  } else if (jwtSecret.length < MIN_JWT_SECRET_LENGTH) {
+    errors.push(`JWT_SECRET debe tener al menos ${MIN_JWT_SECRET_LENGTH} caracteres`);
   }
 
   if (errors.length) {
@@ -77,5 +77,5 @@ module.exports = {
   loadAndValidate,
   parseEnvLine,
   MIN_KEY_LENGTH,
-  MIN_API_KEY_LENGTH,
+  MIN_JWT_SECRET_LENGTH,
 };

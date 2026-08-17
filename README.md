@@ -17,14 +17,17 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **Auditoría**: create, get, reveal, verify, rotate, delete y versions quedan en `audit_events` (sin plaintext)
 - ✅ **IDs UUID**: se abandonó el `index` numérico; cada credencial tiene identidad estable
 - ✅ **Metadatos en claro, payload cifrado**: `name`, `service` y `tags` se pueden filtrar; la clave/contraseña no aparece en GET
+- ✅ **Autenticación JWT**: `POST /api/auth/register` y `/login` emiten un Bearer HS256 (HMAC nativo); el hash de la cuenta es **scrypt**, no bcrypt
+- ✅ **Aislamiento por usuario**: cada credencial y cada evento de auditoría pertenece a un `user_id`; un JWT ajeno recibe 404, no 403
 - ✅ **Reveal por POST**: nada de `?decrypt=true` en la URL (evita logs de proxies y browsers)
-- ✅ **Autenticación de servicio**: header `X-API-Key` o `Authorization: Bearer`, comparado con `timingSafeEqual`
-- ✅ **Sin clave por defecto**: el servidor no arranca con `default-key-change-me…`; exige `ENCRYPTION_KEY` (≥ 32 caracteres) y `API_KEY`
-- ✅ **Collection de Postman**: casos de éxito (201/200) y error (400/401/404) con scripts `pm.test` ejecutables desde el Runner
+- ✅ **Sin clave por defecto**: el servidor no arranca con `default-key-change-me…`; exige `ENCRYPTION_KEY` y `JWT_SECRET` (≥ 32 caracteres)
+- ✅ **Collection de Postman**: casos de éxito (201/200) y error (400/401/404/409) con scripts `pm.test` ejecutables desde el Runner
 - ✅ **Módulo reutilizable**: `src/crypto/lib.js` se copia a otros proyectos Node sin dependencias extra
 - ✅ **Setup de entorno**: `npm run setup-env` genera o completa `.env`
 
-El almacén es un archivo SQLite (`data/bgvault.sqlite`). Usuarios multi-tenant y JWT son la siguiente fase.
+El almacén es un archivo SQLite (`data/bgvault.sqlite`). Las cuentas viven en la tabla `users`; las credenciales previas a esta fase quedan huérfanas (`user_id` nulo) y no aparecen en ningún JWT.
+
+Envelope encryption / KMS y un generador de contraseñas son fases posteriores.
 
 ## 🛠️ Tecnologías
 
@@ -52,10 +55,11 @@ npm run server
 |----------|-----|
 | `PORT` | Puerto HTTP (por defecto `3000`) |
 | `ENCRYPTION_KEY` | Clave maestra de cifrado (≥ 32 caracteres, aleatoria) |
-| `API_KEY` | Clave de acceso a `/api/credentials*` y `/api/audit` |
+| `JWT_SECRET` | Firma HMAC-SHA256 de los tokens (distinta de `ENCRYPTION_KEY`) |
+| `JWT_EXPIRES_IN` | Segundos de vida del JWT (por defecto `28800` = 8 h; min 60, máx 7 días) |
 | `SQLITE_PATH` | Ruta del archivo SQLite (por defecto `data/bgvault.sqlite`) |
 
-En desarrollo local la API key de la collection es `bgvault-dev-api-key-local` (la misma que espera Postman). En producción usá valores distintos y largos.
+En la collection de Postman el usuario de demo es `demo@bgvault.local` / `bgvault-dev-password` (se crea en el Runner). En producción usá valores distintos y largos.
 
 **⚠️ IMPORTANTE**: no subas `.env` al repositorio (está en `.gitignore`).
 
@@ -71,7 +75,7 @@ Podés crearlo de tres formas:
 npm run setup-env
 ```
 
-Si faltan claves, genera `ENCRYPTION_KEY` (32 bytes en hex) y completa `API_KEY`. Si ya existen, las conserva.
+Si faltan claves, genera `ENCRYPTION_KEY` y `JWT_SECRET` (32 bytes en hex cada una). Si ya existen, las conserva.
 
 #### Opción 2: Copiar el ejemplo
 
@@ -79,13 +83,13 @@ Si faltan claves, genera `ENCRYPTION_KEY` (32 bytes en hex) y completa `API_KEY`
 cp .env.example .env
 ```
 
-Completá `ENCRYPTION_KEY` (mínimo 32 caracteres) y, si hace falta, `API_KEY`.
+Completá `ENCRYPTION_KEY` y `JWT_SECRET` (mínimo 32 caracteres cada una).
 
 #### Opción 3: Variables de entorno del sistema
 
 ```bash
 export ENCRYPTION_KEY="tu-clave-segura-de-32-caracteres-minimo"
-export API_KEY="tu-api-key-de-servicio"
+export JWT_SECRET="otro-secreto-distinto-de-32-caracteres-min"
 export PORT=3000
 ```
 
@@ -93,7 +97,7 @@ El servidor carga `.env` al arrancar, pero **no pisa** variables ya definidas en
 
 ### Clave de encriptación
 
-No hay clave hardcodeada. Si `ENCRYPTION_KEY` falta, mide menos de 32 caracteres o es la antigua clave insegura de demo, el proceso **termina con error** y pide `npm run setup-env`.
+No hay clave hardcodeada. Si `ENCRYPTION_KEY` o `JWT_SECRET` faltan, miden menos de 32 caracteres, o `ENCRYPTION_KEY` es la antigua clave insegura de demo, el proceso **termina con error** y pide `npm run setup-env`. `JWT_SECRET` **no** se deriva de `ENCRYPTION_KEY`: si se filtra uno, el otro sigue sirviendo.
 
 ## 🚀 Uso
 
@@ -107,36 +111,34 @@ El vault queda en `http://localhost:3000` (o el `PORT` configurado). En consola:
 
 ```
 BGVault corriendo en http://localhost:3000
-Auth: header X-API-Key o Authorization: Bearer
+Auth: JWT Bearer (POST /api/auth/register o /api/auth/login)
 ```
 
 ### Scripts disponibles
 
 | Script | Descripción |
 |--------|-------------|
-| `npm run setup-env` | Genera o completa `.env` (`ENCRYPTION_KEY`, `API_KEY`) |
+| `npm run setup-env` | Genera o completa `.env` (`ENCRYPTION_KEY`, `JWT_SECRET`) |
 | `npm run server` | Inicia el vault Express |
-| `npm run client:post` | Crea una credencial `password` de demo (requiere `API_KEY`) |
-| `npm run client:get` | Lista credenciales (solo metadatos) |
+| `npm run client:post` | Registra/loguea `demo@bgvault.local` y crea una credencial `password` |
+| `npm run client:get` | Lista credenciales del usuario demo (solo metadatos) |
 | `npm run decrypt-env` | Muestra variables `*_ENCRYPTED` del `.env`, si existen |
 
 ## 🔑 Autenticación
 
-`GET /health` es público.
+`GET /health` es público. `POST /api/auth/register` y `POST /api/auth/login` también (emiten el token).
 
-Todas las rutas `/api/credentials*` exigen API key. Sin ella o con una inválida: **401**.
-
-```
-X-API-Key: bgvault-dev-api-key-local
-```
-
-o:
+Todas las rutas `/api/credentials*`, `/api/audit*` y `GET /api/auth/me` exigen:
 
 ```
-Authorization: Bearer bgvault-dev-api-key-local
+Authorization: Bearer <accessToken>
 ```
 
-La comparación usa `crypto.timingSafeEqual` para no filtrar la key por timing.
+Sin header, con un token inválido, expirado o de un usuario borrado: **401** `No autorizado`.
+
+El JWT es **HS256** firmado con `JWT_SECRET` (`node:crypto.createHmac`). La contraseña de la cuenta se guarda con **scrypt** (`N=16384, r=8, p=1`); nunca viaja de vuelta en JSON. Un login fallido responde siempre `Credenciales inválidas` (no dice si el email existe).
+
+Un usuario **no ve** las credenciales de otro: list, get, reveal, rotate y audit filtran por `user_id`. Si el id existe pero es de otro dueño, la API responde **404** (no 403), para no filtrar existencia.
 
 ## 📡 API Endpoints
 
@@ -159,13 +161,93 @@ Verifica que el proceso esté vivo. No requiere auth.
 {
   "status": "OK",
   "persistence": "sqlite",
+  "auth": "jwt",
   "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
 
 ---
 
-### 2. Crear credencial
+### 2. Registrar usuario
+
+Crea la cuenta, hashea la contraseña con scrypt y devuelve un JWT. El email se normaliza a minúsculas.
+
+**POST** `/api/auth/register`  
+**Auth:** no  
+**Status:** `201`
+
+**Body:**
+```json
+{
+  "email": "demo@bgvault.local",
+  "password": "bgvault-dev-password"
+}
+```
+
+| Campo | Requerido | Regla |
+|-------|-----------|-------|
+| `email` | sí | Formato básico, máximo 254 caracteres |
+| `password` | sí | Entre 8 y 128 caracteres |
+
+**Respuesta 201:**
+```json
+{
+  "message": "Usuario registrado",
+  "user": {
+    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "email": "demo@bgvault.local",
+    "createdAt": "2026-08-16T01:35:56.264Z"
+  },
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "tokenType": "Bearer",
+  "expiresIn": 28800,
+  "timestamp": "2026-08-16T01:35:56.264Z"
+}
+```
+
+La respuesta **nunca** incluye `password` ni `passwordHash`.
+
+**Errores:**
+
+| Status | Cuándo |
+|--------|--------|
+| 400 | Falta email/password, email inválido, password corto |
+| 409 | `Email ya registrado` |
+
+---
+
+### 3. Iniciar sesión
+
+**POST** `/api/auth/login`  
+**Auth:** no  
+**Status:** `200`
+
+Mismo body que register. Respuesta idéntica salvo `message`: `"Sesión iniciada"`.
+
+**Errores:** `400` si faltan campos; `401` `Credenciales inválidas` si el email no existe o la contraseña no coincide.
+
+---
+
+### 4. Perfil (me)
+
+**GET** `/api/auth/me`  
+**Auth:** Bearer JWT
+
+**Respuesta 200:**
+```json
+{
+  "user": {
+    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "email": "demo@bgvault.local",
+    "createdAt": "2026-08-16T01:35:56.264Z"
+  },
+  "timestamp": "2026-08-16T01:35:56.264Z"
+}
+```
+
+---
+
+### 5. Crear credencial
 
 Cifra el `payload` con AES-256-GCM (AAD = `credential:<id>:<type>:<version>`) y guarda el registro como **versión 1**.
 
@@ -231,7 +313,7 @@ La respuesta **nunca** incluye `payload` ni ciphertext.
 | Status | Cuándo |
 |--------|--------|
 | 400 | `type` inválido, falta `name`, `payload` incompleto, `tags` mal formados |
-| 401 | Sin API key o key inválida |
+| 401 | Sin JWT, token inválido o expirado |
 
 ```json
 {
@@ -242,7 +324,7 @@ La respuesta **nunca** incluye `payload` ni ciphertext.
 
 ---
 
-### 3. Listar credenciales
+### 6. Listar credenciales
 
 Devuelve solo metadatos. Se puede filtrar.
 
@@ -307,7 +389,7 @@ Otros tipos de ejemplo para crear:
 
 ---
 
-### 4. Obtener metadatos por id
+### 7. Obtener metadatos por id
 
 **GET** `/api/credentials/:id`  
 **Auth:** requerida
@@ -324,7 +406,7 @@ Otros tipos de ejemplo para crear:
 
 ---
 
-### 5. Revelar credencial (POST)
+### 8. Revelar credencial (POST)
 
 Desencripta el payload y lo devuelve. Es **POST** a propósito: el valor no queda en access logs de query string.
 
@@ -347,11 +429,11 @@ Body: no hace falta.
 }
 ```
 
-**404** si el id no existe. **401** sin API key.
+**404** si el id no existe **o pertenece a otro usuario**. **401** sin JWT.
 
 ---
 
-### 6. Verificar una contraseña
+### 9. Verificar una contraseña
 
 Compara un candidato contra el payload almacenado. **Solo aplica a `type=password`**.
 
@@ -389,12 +471,12 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 | Status | Cuándo |
 |--------|--------|
 | 400 | El registro no es `password`, o falta `password` en el body |
-| 401 | Sin API key |
+| 401 | Sin JWT |
 | 404 | Id inexistente |
 
 ---
 
-### 7. Eliminar credencial
+### 10. Eliminar credencial
 
 **DELETE** `/api/credentials/:id`  
 **Auth:** requerida
@@ -412,7 +494,7 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 
 ---
 
-### 8. Rotar credencial (nueva versión)
+### 11. Rotar credencial (nueva versión)
 
 Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones anteriores. El tipo no cambia.
 
@@ -451,7 +533,7 @@ Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones
 
 ---
 
-### 9. Listar versiones
+### 12. Listar versiones
 
 Devuelve el historial **sin** ciphertext ni plaintext.
 
@@ -473,7 +555,7 @@ Devuelve el historial **sin** ciphertext ni plaintext.
 
 ---
 
-### 10. Revelar una versión concreta
+### 13. Revelar una versión concreta
 
 El reveal usa la versión actual si no mandás `version`. El número de versión va en el **body**, no en la URL.
 
@@ -492,9 +574,9 @@ Verify también acepta `"version": 1` opcional (por defecto, la actual).
 
 ---
 
-### 11. Auditoría
+### 14. Auditoría
 
-Lista eventos de create, get, reveal, verify, rotate, delete y versions. **Nunca** guarda plaintext ni ciphertext.
+Lista eventos de register, login, create, get, reveal, verify, rotate, delete y versions **del usuario autenticado**. **Nunca** guarda plaintext ni ciphertext.
 
 **GET** `/api/audit`  
 **GET** `/api/audit?action=rotate`  
@@ -509,6 +591,7 @@ Lista eventos de create, get, reveal, verify, rotate, delete y versions. **Nunca
       "id": 12,
       "at": "2026-08-16T01:40:00.000Z",
       "action": "rotate",
+      "userId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
       "credentialId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
       "version": 2,
       "ok": true,
@@ -530,15 +613,16 @@ Lista eventos de create, get, reveal, verify, rotate, delete y versions. **Nunca
 
 | Código | Significado |
 |--------|-------------|
-| 200 | Listar, get, versions, reveal, verify, rotate, delete, audit |
-| 201 | Credencial creada |
-| 400 | Validación (tipo, name, payload, verify sobre no-password) |
-| 401 | Falta o no coincide `API_KEY` |
-| 404 | Credencial o ruta inexistente |
+| 200 | Login, me, listar, get, versions, reveal, verify, rotate, delete, audit |
+| 201 | Usuario o credencial creados |
+| 400 | Validación (email, password de cuenta, tipo, name, payload, verify sobre no-password) |
+| 401 | JWT ausente, inválido, expirado; o login con credenciales incorrectas |
+| 404 | Credencial ajena, inexistente, o ruta inexistente |
+| 409 | Email ya registrado |
 
 ## 🧪 Collection de Postman
 
-La collection **Crypto AES-256-GCM Vault** cubre el contrato: Health, Auth (401), Create de los 4 tipos, validaciones 400, listado sin plaintext, reveal, verify, rotación, historial, auditoría y delete.
+La collection **Crypto AES-256-GCM Vault** cubre el contrato: Health, Auth (401 / register / login / me), Create de los 4 tipos, validaciones 400, aislamiento entre usuarios (404 a credencial ajena), listado sin plaintext, reveal, verify, rotación, historial, auditoría y delete.
 
 Archivo: `collections/bgvault.postman_collection.json`  
 El `_postman_id` se mantiene fijo para que reimportar **actualice** la collection y no abra otra.
@@ -547,31 +631,44 @@ El `_postman_id` se mantiene fijo para que reimportar **actualice** la collectio
 
 1. `npm run setup-env` y `npm run server`
 2. En Postman: **Import** → `collections/bgvault.postman_collection.json` (si ya existe, **Replace**)
-3. Click en la collection → pestaña **Variables** → `apiKey` (**Current value**) = `bgvault-dev-api-key-local`
-4. Guardá (Ctrl+S)
-5. **Runner** → **Run collection** (en orden)
+3. **Runner** → **Run collection** (en orden). Auth registra `demo@bgvault.local` (o hace login si ya existe) y guarda `accessToken`
+4. Guardá (Ctrl+S) si Postman te pide persistir variables
 
-La collection envía `X-API-Key: {{apiKey}}` en todo excepto Health y los casos 401 (a propósito, para afirmar el 401).
+La collection envía `Authorization: Bearer {{accessToken}}` en vault y me. Health, register, login y los 401 van con `noauth`.
 
-Los tests comprueban status, que GET/list no filtren `payload` ni ciphertext, formato de cifrado cuando aplica, y que reveal/verify desencripten el valor esperado.
+Los tests comprueban status, que GET/list no filtren `payload` ni ciphertext, que un segundo usuario no vea credenciales ajenas, y que reveal/verify desencripten el valor esperado.
 
-Si el Runner dice **Environment: none**, está bien: la key vive en **variables de la collection**, no en un environment aparte.
+Si el Runner dice **Environment: none**, está bien: el token se guarda en **variables de la collection**.
 
 ## 📝 Ejemplos de uso
 
 ### Ejemplo 1: curl
 
 ```bash
-export API_KEY="bgvault-dev-api-key-local"
 export BASE="http://localhost:3000"
 
 # Salud
 curl -s "$BASE/health"
 
+# Registrar (o login si el email ya existe)
+curl -s -X POST "$BASE/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@bgvault.local","password":"bgvault-dev-password"}'
+
+TOKEN=$(curl -s -X POST "$BASE/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@bgvault.local","password":"bgvault-dev-password"}' \
+  | python -c "import sys,json; print(json.load(sys.stdin)['accessToken'])")
+
+AUTH="Authorization: Bearer $TOKEN"
+
+# Perfil
+curl -s "$BASE/api/auth/me" -H "$AUTH"
+
 # Crear API key
 curl -s -X POST "$BASE/api/credentials" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: $API_KEY" \
+  -H "$AUTH" \
   -d '{
     "type": "api_key",
     "name": "Stripe live",
@@ -580,42 +677,42 @@ curl -s -X POST "$BASE/api/credentials" \
   }'
 
 # Listar (sin plaintext)
-curl -s "$BASE/api/credentials" -H "X-API-Key: $API_KEY"
+curl -s "$BASE/api/credentials" -H "$AUTH"
 
 # Filtrar
-curl -s "$BASE/api/credentials?type=password" -H "X-API-Key: $API_KEY"
+curl -s "$BASE/api/credentials?type=password" -H "$AUTH"
 
 # Revelar (reemplazá el id)
 curl -s -X POST "$BASE/api/credentials/<id>/reveal" \
-  -H "X-API-Key: $API_KEY"
+  -H "$AUTH"
 
 # Verificar password
 curl -s -X POST "$BASE/api/credentials/<id>/verify" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: $API_KEY" \
+  -H "$AUTH" \
   -d '{ "password": "miContraseña123" }'
 
 # Rotar
 curl -s -X POST "$BASE/api/credentials/<id>/rotate" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: $API_KEY" \
+  -H "$AUTH" \
   -d '{ "payload": { "password": "nueva", "username": "usuario@example.com" } }'
 
 # Versiones
-curl -s "$BASE/api/credentials/<id>/versions" -H "X-API-Key: $API_KEY"
+curl -s "$BASE/api/credentials/<id>/versions" -H "$AUTH"
 
 # Revelar versión histórica
 curl -s -X POST "$BASE/api/credentials/<id>/reveal" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: $API_KEY" \
+  -H "$AUTH" \
   -d '{ "version": 1 }'
 
 # Auditoría
-curl -s "$BASE/api/audit?action=rotate" -H "X-API-Key: $API_KEY"
+curl -s "$BASE/api/audit?action=rotate" -H "$AUTH"
 
 # Eliminar
 curl -s -X DELETE "$BASE/api/credentials/<id>" \
-  -H "X-API-Key: $API_KEY"
+  -H "$AUTH"
 ```
 
 ### Ejemplo 2: scripts npm
@@ -634,21 +731,27 @@ npm run decrypt-env     # solo si hay *_ENCRYPTED en .env
 bgvault/
 ├── src/
 │   ├── config/
-│   │   └── env.js                   # Carga .env y valida ENCRYPTION_KEY / API_KEY
+│   │   └── env.js                   # Carga .env y valida ENCRYPTION_KEY / JWT_SECRET
+│   ├── auth/
+│   │   ├── password.js              # scrypt (hash / verify)
+│   │   └── jwt.js                   # JWT HS256 nativo
 │   ├── middleware/
-│   │   └── requireApiKey.js         # Auth X-API-Key / Bearer + timingSafeEqual
+│   │   └── requireAuth.js           # Bearer JWT + carga del usuario
 │   ├── db/
-│   │   └── sqlite.js                # node:sqlite, schema, WAL
+│   │   └── sqlite.js                # node:sqlite, schema, WAL, migrate user_id
 │   ├── store/
-│   │   ├── credentialsStore.js      # Credenciales + versiones
-│   │   └── auditStore.js            # Audit log
+│   │   ├── usersStore.js            # Cuentas
+│   │   ├── credentialsStore.js      # Credenciales + versiones (scoped)
+│   │   └── auditStore.js            # Audit log (scoped)
 │   ├── controllers/
+│   │   ├── authController.js        # register, login, me
 │   │   ├── credentialController.js  # CRUD, reveal, verify, rotate, versions
 │   │   └── auditController.js
 │   ├── crypto/
 │   │   ├── lib.js                   # encrypt / decrypt AES-256-GCM + AAD
 │   │   └── crypto-cli.js            # CLI: cifrar / descifrar un valor
 │   ├── routes/
+│   │   ├── authRoutes.js            # /api/auth
 │   │   ├── credentialRoutes.js      # /api/credentials
 │   │   └── auditRoutes.js           # /api/audit
 │   ├── server.js                    # Express, headers, 404/JSON inválido
@@ -735,18 +838,28 @@ Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 - `X-Powered-By` deshabilitado; `X-Content-Type-Options: nosniff`; `X-Frame-Options: DENY`
 - Body JSON limitado a 32 KB
 
+### Cuentas y tokens
+
+| Pieza | Detalle |
+|-------|---------|
+| Contraseña de usuario | scrypt, N=16384, r=8, p=1, salt de 16 bytes |
+| JWT | HS256, HMAC-SHA256, `JWT_SECRET` independiente |
+| Comparación | `timingSafeEqual` en firma y en hash |
+| Aislamiento | `credentials.user_id` y `audit_events.user_id` |
+
 ### Recomendaciones
 
-1. **Claves**: `ENCRYPTION_KEY` ≥ 32 caracteres; nunca en el código
+1. **Claves**: `ENCRYPTION_KEY` y `JWT_SECRET` ≥ 32 caracteres, **distintos**, nunca en el código
 2. **`.env`**: fuera de git
 3. **HTTPS** en cualquier red que no sea loopback
-4. **API_KEY** distinta por entorno; rotarla si se filtra
-5. **Producción**: no uses `bgvault-dev-api-key-local`
+4. **Cuentas**: no reutilices `demo@bgvault.local` fuera de desarrollo
+5. **Producción**: rotá `JWT_SECRET` si se filtra (invalida todas las sesiones)
 
 ## ⚠️ Limitaciones
 
-- **Un solo `API_KEY`**: no hay usuarios, roles ni tenants todavía
-- **Sin envelope encryption / KMS**: una sola `ENCRYPTION_KEY` envuelve todo
+- **JWT sin refresh/revocación**: el token vale hasta `exp`; borrar el usuario invalida `me` y el vault en el acto, pero un JWT ya emitido sigue verificándose hasta que el `sub` desaparece
+- **Sin roles/admin**: todos los usuarios son dueños de su vault; no hay sharing
+- **Sin envelope encryption / KMS**: una sola `ENCRYPTION_KEY` envuelve el payload de todos
 - **SQLite local**: un proceso, un archivo; no está pensado para un clúster
 - Pensado como vault profesional de desarrollo y base de un producto, no como HSM de producción
 
@@ -760,7 +873,7 @@ Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 
 ### Módulos nativos utilizados
 
-- `node:crypto` — cifrado, UUID, `timingSafeEqual`, generación de claves
+- `node:crypto` — AES-GCM, scrypt, HMAC-SHA256, UUID, `timingSafeEqual`, generación de claves
 - `node:sqlite` — persistencia, versiones y auditoría
 - `node:fs` / `node:path` — `.env`, setup y directorio `data/`
 - `node:readline` — reservado para flujos interactivos de setup

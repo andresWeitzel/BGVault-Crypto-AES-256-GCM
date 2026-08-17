@@ -3,9 +3,10 @@ const sqlite = require('./db/sqlite');
 sqlite.open();
 
 const express = require('express');
+const authRoutes = require('./routes/authRoutes');
 const credentialRoutes = require('./routes/credentialRoutes');
 const auditRoutes = require('./routes/auditRoutes');
-const requireApiKey = require('./middleware/requireApiKey');
+const requireAuth = require('./middleware/requireAuth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,12 +24,14 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
     persistence: 'sqlite',
+    auth: 'jwt',
     timestamp: new Date().toISOString(),
   });
 });
 
-app.use('/api/credentials', requireApiKey, credentialRoutes);
-app.use('/api/audit', requireApiKey, auditRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/credentials', requireAuth, credentialRoutes);
+app.use('/api/audit', requireAuth, auditRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
@@ -53,7 +56,7 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`BGVault corriendo en http://localhost:${PORT}`);
-  console.log('Auth: header X-API-Key o Authorization: Bearer');
+  console.log('Auth: JWT Bearer (POST /api/auth/register o /api/auth/login)');
   console.log(`SQLite: ${sqlite.resolveDbPath()}`);
 });
 

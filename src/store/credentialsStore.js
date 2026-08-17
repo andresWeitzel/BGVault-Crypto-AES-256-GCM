@@ -13,6 +13,7 @@ function mapCredential(row) {
   if (!row) return null;
   return {
     id: row.id,
+    userId: row.user_id,
     type: row.type,
     name: row.name,
     service: row.service,
@@ -29,11 +30,12 @@ function create(record) {
   runInTransaction((db) => {
     db.prepare(
       `
-      INSERT INTO credentials (id, type, name, service, tags, current_version, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO credentials (id, user_id, type, name, service, tags, current_version, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     ).run(
       record.id,
+      record.userId,
       record.type,
       record.name,
       record.service,
@@ -52,45 +54,45 @@ function create(record) {
   return record;
 }
 
-function findById(id) {
+function findById(id, userId) {
   const row = getDb()
     .prepare(
       `
-      SELECT c.id, c.type, c.name, c.service, c.tags, c.current_version,
+      SELECT c.id, c.user_id, c.type, c.name, c.service, c.tags, c.current_version,
              c.created_at, c.updated_at, v.version, v.ciphertext
       FROM credentials c
       JOIN credential_versions v
         ON v.credential_id = c.id AND v.version = c.current_version
-      WHERE c.id = ?
+      WHERE c.id = ? AND c.user_id = ?
     `,
     )
-    .get(id);
+    .get(id, userId);
   return mapCredential(row);
 }
 
-function findByIdAndVersion(id, version) {
+function findByIdAndVersion(id, version, userId) {
   const row = getDb()
     .prepare(
       `
-      SELECT c.id, c.type, c.name, c.service, c.tags, c.current_version,
+      SELECT c.id, c.user_id, c.type, c.name, c.service, c.tags, c.current_version,
              c.created_at, c.updated_at, v.version, v.ciphertext
       FROM credentials c
       JOIN credential_versions v
         ON v.credential_id = c.id AND v.version = ?
-      WHERE c.id = ?
+      WHERE c.id = ? AND c.user_id = ?
     `,
     )
-    .get(version, id);
+    .get(version, id, userId);
   return mapCredential(row);
 }
 
-function list({ type, service } = {}) {
+function list({ userId, type, service } = {}) {
   let sql = `
-    SELECT id, type, name, service, tags, current_version, created_at, updated_at
+    SELECT id, user_id, type, name, service, tags, current_version, created_at, updated_at
     FROM credentials
-    WHERE 1 = 1
+    WHERE user_id = ?
   `;
-  const params = [];
+  const params = [userId];
   if (type) {
     sql += ' AND type = ?';
     params.push(type);
@@ -107,12 +109,12 @@ function list({ type, service } = {}) {
     .map((row) => mapCredential(row));
 }
 
-function listVersions(id) {
+function listVersions(id, userId) {
   const credential = getDb()
     .prepare(
-      'SELECT id, current_version, created_at, updated_at FROM credentials WHERE id = ?',
+      'SELECT id, current_version, created_at, updated_at FROM credentials WHERE id = ? AND user_id = ?',
     )
-    .get(id);
+    .get(id, userId);
   if (!credential) return null;
 
   const versions = getDb()
@@ -134,9 +136,11 @@ function listVersions(id) {
   };
 }
 
-function rotate(id, { ciphertext, timestamp }) {
+function rotate(id, userId, { ciphertext, timestamp }) {
   const nextVersion = runInTransaction((db) => {
-    const current = db.prepare('SELECT current_version FROM credentials WHERE id = ?').get(id);
+    const current = db
+      .prepare('SELECT current_version FROM credentials WHERE id = ? AND user_id = ?')
+      .get(id, userId);
     if (!current) return null;
     const version = current.current_version + 1;
     db.prepare(
@@ -149,22 +153,26 @@ function rotate(id, { ciphertext, timestamp }) {
       `
       UPDATE credentials
       SET current_version = ?, updated_at = ?
-      WHERE id = ?
+      WHERE id = ? AND user_id = ?
     `,
-    ).run(version, timestamp, id);
+    ).run(version, timestamp, id, userId);
     return version;
   });
 
   if (nextVersion == null) return null;
-  return findById(id);
+  return findById(id, userId);
 }
 
-function exists(id) {
-  return Boolean(getDb().prepare('SELECT 1 FROM credentials WHERE id = ?').get(id));
+function exists(id, userId) {
+  return Boolean(
+    getDb().prepare('SELECT 1 FROM credentials WHERE id = ? AND user_id = ?').get(id, userId),
+  );
 }
 
-function remove(id) {
-  const result = getDb().prepare('DELETE FROM credentials WHERE id = ?').run(id);
+function remove(id, userId) {
+  const result = getDb()
+    .prepare('DELETE FROM credentials WHERE id = ? AND user_id = ?')
+    .run(id, userId);
   return result.changes > 0;
 }
 

@@ -11,15 +11,24 @@ let db;
 const SCHEMA = `
 PRAGMA foreign_keys = ON;
 
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS credentials (
   id TEXT PRIMARY KEY,
+  user_id TEXT,
   type TEXT NOT NULL,
   name TEXT NOT NULL,
   service TEXT,
   tags TEXT NOT NULL DEFAULT '[]',
   current_version INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS credential_versions (
@@ -35,6 +44,7 @@ CREATE TABLE IF NOT EXISTS audit_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at TEXT NOT NULL,
   action TEXT NOT NULL,
+  user_id TEXT,
   credential_id TEXT,
   version INTEGER,
   ok INTEGER NOT NULL,
@@ -47,6 +57,25 @@ CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_events(at);
 CREATE INDEX IF NOT EXISTS idx_audit_credential ON audit_events(credential_id);
 CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_events(action);
 `;
+
+function columnNames(conn, table) {
+  return conn.prepare(`PRAGMA table_info(${table})`).all().map((row) => row.name);
+}
+
+function migrate(conn) {
+  const credentialColumns = columnNames(conn, 'credentials');
+  if (!credentialColumns.includes('user_id')) {
+    conn.exec('ALTER TABLE credentials ADD COLUMN user_id TEXT');
+  }
+
+  const auditColumns = columnNames(conn, 'audit_events');
+  if (!auditColumns.includes('user_id')) {
+    conn.exec('ALTER TABLE audit_events ADD COLUMN user_id TEXT');
+  }
+
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_credentials_user ON credentials(user_id)');
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_events(user_id)');
+}
 
 function resolveDbPath() {
   return process.env.SQLITE_PATH || DEFAULT_DB_PATH;
@@ -64,6 +93,7 @@ function open() {
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
 }
 

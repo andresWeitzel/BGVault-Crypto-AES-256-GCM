@@ -2,20 +2,21 @@
   "info": {
     "_postman_id": "c8d5f0b2-6e3a-4d9c-8b42-1f7e3c9d2a85",
     "name": "Crypto AES-256-GCM Vault",
-    "description": "Crypto AES-256-GCM Vault — passwords, API keys, tokens y notas.\n\nAuth de la collection: header `X-API-Key: {{apiKey}}`.\n\n1. `npm run setup-env` y `npm run server`\n2. Esta collection → pestaña **Variables** → `apiKey` (Current value) = `bgvault-dev-api-key-local` (la misma de `.env`)\n3. Runner → **Run collection** (en orden)\n\nHealth es público. Los requests 401 de Auth no usan esta key a propósito.",
+    "description": "Crypto AES-256-GCM Vault — passwords, API keys, tokens y notas.\n\nAuth de la collection: `Authorization: Bearer {{accessToken}}`.\n\n1. `npm run setup-env` y `npm run server`\n2. Runner → **Run collection** (en orden). El folder Auth registra/loguea y guarda `accessToken`.\n3. Health y register/login son públicos. Los 401 van sin token a propósito.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
-    "type": "apikey",
-    "apikey": [
-      { "key": "in", "value": "header" },
-      { "key": "key", "value": "X-API-Key" },
-      { "key": "value", "value": "{{apiKey}}" }
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}" }
     ]
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:3000" },
-    { "key": "apiKey", "value": "bgvault-dev-api-key-local" },
+    { "key": "accessToken", "value": "" },
+    { "key": "otherAccessToken", "value": "" },
+    { "key": "authEmail", "value": "demo@bgvault.local" },
+    { "key": "authPassword", "value": "bgvault-dev-password" },
     { "key": "password", "value": "miContraseña123!" },
     { "key": "username", "value": "usuario@example.com" },
     { "key": "wrongPassword", "value": "clave-incorrecta" },
@@ -48,6 +49,7 @@
                   "    pm.response.to.have.status(200);",
                   "    const json = pm.response.json();",
                   "    pm.expect(json.status).to.eql('OK');",
+                  "    pm.expect(json.auth).to.eql('jwt');",
                   "    pm.expect(json).to.have.property('timestamp');",
                   "});"
                 ]
@@ -61,7 +63,7 @@
       "name": "Auth",
       "item": [
         {
-          "name": "401 — sin API key",
+          "name": "401 — sin token",
           "request": {
             "auth": { "type": "noauth" },
             "method": "GET",
@@ -84,12 +86,12 @@
           ]
         },
         {
-          "name": "401 — API key inválida",
+          "name": "401 — token inválido",
           "request": {
             "auth": { "type": "noauth" },
             "method": "GET",
             "header": [
-              { "key": "X-API-Key", "value": "clave-falsa" }
+              { "key": "Authorization", "value": "Bearer token-falso" }
             ],
             "url": "{{baseUrl}}/api/credentials"
           },
@@ -102,6 +104,153 @@
                   "pm.test('Status 401', function () {",
                   "    pm.response.to.have.status(401);",
                   "    pm.expect(pm.response.json().error).to.eql('No autorizado');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{authEmail}}\",\n  \"password\": \"{{authPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/register"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('201 nuevo o 409 ya existe', function () {",
+                  "    pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});",
+                  "if (pm.response.code === 201 && json.accessToken) {",
+                  "    pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{authEmail}}\",\n  \"password\": \"{{authPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Sesión iniciada', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.accessToken).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.tokenType).to.eql('Bearer');",
+                  "    pm.expect(json.user.email).to.eql(pm.collectionVariables.get('authEmail'));",
+                  "    pm.expect(json.user).to.not.have.property('passwordHash');",
+                  "});",
+                  "if (json.accessToken) {",
+                  "    pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Perfil sin hash', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.user.email).to.eql(pm.collectionVariables.get('authEmail'));",
+                  "    pm.expect(json.user).to.have.property('id');",
+                  "    pm.expect(json.user).to.not.have.property('passwordHash');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — password corto",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"corto@bgvault.local\",\n  \"password\": \"123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/register"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().error).to.include('password debe tener al menos');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "401 — login inválido",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{authEmail}}\",\n  \"password\": \"clave-incorrecta\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Credenciales inválidas', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "    pm.expect(pm.response.json().error).to.eql('Credenciales inválidas');",
                   "});"
                 ]
               }
@@ -391,6 +540,80 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    pm.expect(pm.response.json().error).to.eql('Credencial no encontrada');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Isolation",
+      "item": [
+        {
+          "name": "Registrar segundo usuario",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"other@bgvault.local\",\n  \"password\": \"other-password-1\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/register"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const email = 'other-' + Date.now() + '@bgvault.local';",
+                  "pm.collectionVariables.set('otherEmail', email);",
+                  "pm.request.body.raw = JSON.stringify({ email: email, password: 'other-password-1' });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Segundo usuario', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(json.accessToken).to.be.a('string').and.not.empty;",
+                  "});",
+                  "if (json.accessToken) {",
+                  "    pm.collectionVariables.set('otherAccessToken', json.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Credencial ajena — 404",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{otherAccessToken}}" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No filtra existencia ajena', function () {",
                   "    pm.response.to.have.status(404);",
                   "    pm.expect(pm.response.json().error).to.eql('Credencial no encontrada');",
                   "});"

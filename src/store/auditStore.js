@@ -1,16 +1,17 @@
 const { getDb } = require('../db/sqlite');
 
-function append({ action, credentialId = null, version = null, ok, detail = null, at }) {
+function append({ action, userId = null, credentialId = null, version = null, ok, detail = null, at }) {
   getDb()
     .prepare(
       `
-      INSERT INTO audit_events (at, action, credential_id, version, ok, detail)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO audit_events (at, action, user_id, credential_id, version, ok, detail)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `,
     )
     .run(
       at || new Date().toISOString(),
       action,
+      userId,
       credentialId,
       version,
       ok ? 1 : 0,
@@ -18,16 +19,16 @@ function append({ action, credentialId = null, version = null, ok, detail = null
     );
 }
 
-function list({ action, credentialId, limit = 50, offset = 0 } = {}) {
+function list({ userId, action, credentialId, limit = 50, offset = 0 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
   const safeOffset = Math.max(Number(offset) || 0, 0);
 
   let sql = `
-    SELECT id, at, action, credential_id, version, ok, detail
+    SELECT id, at, action, user_id, credential_id, version, ok, detail
     FROM audit_events
-    WHERE 1 = 1
+    WHERE user_id = ?
   `;
-  const params = [];
+  const params = [userId];
   if (action) {
     sql += ' AND action = ?';
     params.push(action);
@@ -46,6 +47,7 @@ function list({ action, credentialId, limit = 50, offset = 0 } = {}) {
       id: row.id,
       at: row.at,
       action: row.action,
+      userId: row.user_id,
       credentialId: row.credential_id,
       version: row.version,
       ok: row.ok === 1,
