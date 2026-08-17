@@ -21,6 +21,7 @@ function mapCredential(row) {
     currentVersion: row.current_version,
     version: row.version ?? row.current_version,
     ciphertext: row.ciphertext,
+    wrappedDek: row.wrapped_dek || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -46,10 +47,10 @@ function create(record) {
     );
     db.prepare(
       `
-      INSERT INTO credential_versions (credential_id, version, ciphertext, created_at)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO credential_versions (credential_id, version, ciphertext, wrapped_dek, created_at)
+      VALUES (?, ?, ?, ?, ?)
     `,
-    ).run(record.id, record.currentVersion, record.ciphertext, record.createdAt);
+    ).run(record.id, record.currentVersion, record.ciphertext, record.wrappedDek || null, record.createdAt);
   });
   return record;
 }
@@ -59,7 +60,7 @@ function findById(id, userId) {
     .prepare(
       `
       SELECT c.id, c.user_id, c.type, c.name, c.service, c.tags, c.current_version,
-             c.created_at, c.updated_at, v.version, v.ciphertext
+             c.created_at, c.updated_at, v.version, v.ciphertext, v.wrapped_dek
       FROM credentials c
       JOIN credential_versions v
         ON v.credential_id = c.id AND v.version = c.current_version
@@ -75,7 +76,7 @@ function findByIdAndVersion(id, version, userId) {
     .prepare(
       `
       SELECT c.id, c.user_id, c.type, c.name, c.service, c.tags, c.current_version,
-             c.created_at, c.updated_at, v.version, v.ciphertext
+             c.created_at, c.updated_at, v.version, v.ciphertext, v.wrapped_dek
       FROM credentials c
       JOIN credential_versions v
         ON v.credential_id = c.id AND v.version = ?
@@ -136,7 +137,7 @@ function listVersions(id, userId) {
   };
 }
 
-function rotate(id, userId, { ciphertext, timestamp }) {
+function rotate(id, userId, { ciphertext, wrappedDek, timestamp }) {
   const nextVersion = runInTransaction((db) => {
     const current = db
       .prepare('SELECT current_version FROM credentials WHERE id = ? AND user_id = ?')
@@ -145,10 +146,10 @@ function rotate(id, userId, { ciphertext, timestamp }) {
     const version = current.current_version + 1;
     db.prepare(
       `
-      INSERT INTO credential_versions (credential_id, version, ciphertext, created_at)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO credential_versions (credential_id, version, ciphertext, wrapped_dek, created_at)
+      VALUES (?, ?, ?, ?, ?)
     `,
-    ).run(id, version, ciphertext, timestamp);
+    ).run(id, version, ciphertext, wrappedDek || null, timestamp);
     db.prepare(
       `
       UPDATE credentials

@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS credential_versions (
   credential_id TEXT NOT NULL,
   version INTEGER NOT NULL,
   ciphertext TEXT NOT NULL,
+  wrapped_dek TEXT,
   created_at TEXT NOT NULL,
   PRIMARY KEY (credential_id, version),
   FOREIGN KEY (credential_id) REFERENCES credentials(id) ON DELETE CASCADE
@@ -71,6 +72,11 @@ function migrate(conn) {
   const auditColumns = columnNames(conn, 'audit_events');
   if (!auditColumns.includes('user_id')) {
     conn.exec('ALTER TABLE audit_events ADD COLUMN user_id TEXT');
+  }
+
+  const versionColumns = columnNames(conn, 'credential_versions');
+  if (!versionColumns.includes('wrapped_dek')) {
+    conn.exec('ALTER TABLE credential_versions ADD COLUMN wrapped_dek TEXT');
   }
 
   conn.exec('CREATE INDEX IF NOT EXISTS idx_credentials_user ON credentials(user_id)');

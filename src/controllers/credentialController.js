@@ -1,5 +1,5 @@
 const crypto = require('node:crypto');
-const { encrypt, decrypt } = require('../crypto/lib');
+const envelope = require('../crypto/envelope');
 const store = require('../store/credentialsStore');
 const auditStore = require('../store/auditStore');
 
@@ -7,10 +7,6 @@ const CREDENTIAL_TYPES = ['password', 'api_key', 'token', 'note'];
 
 function now() {
   return new Date().toISOString();
-}
-
-function aadFor(id, type, version) {
-  return `credential:${id}:${type}:${version}`;
 }
 
 function toPublic(credential) {
@@ -77,16 +73,18 @@ function validatePayload(type, payload) {
 }
 
 function encryptPayload(id, type, payload, version) {
-  return encrypt(JSON.stringify(payload), undefined, aadFor(id, type, version));
+  return envelope.seal(JSON.stringify(payload), { id, type, version });
 }
 
 function decryptPayload(credential) {
   return JSON.parse(
-    decrypt(
-      credential.ciphertext,
-      undefined,
-      aadFor(credential.id, credential.type, credential.version),
-    ),
+    envelope.open({
+      ciphertext: credential.ciphertext,
+      wrappedDek: credential.wrappedDek,
+      id: credential.id,
+      type: credential.type,
+      version: credential.version,
+    }),
   );
 }
 
@@ -128,6 +126,7 @@ function createCredential(req, res) {
 
   try {
     const id = crypto.randomUUID();
+    const sealed = encryptPayload(id, type, payload, 1);
     const record = {
       id,
       userId: ownerId(req),
@@ -136,7 +135,8 @@ function createCredential(req, res) {
       service: service && String(service).trim() ? String(service).trim() : null,
       tags: normalizedTags,
       currentVersion: 1,
-      ciphertext: encryptPayload(id, type, payload, 1),
+      ciphertext: sealed.ciphertext,
+      wrappedDek: sealed.wrappedDek,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -413,13 +413,17 @@ function rotateCredential(req, res) {
 
   try {
     const nextVersion = credential.currentVersion + 1;
-    const ciphertext = encryptPayload(
+    const sealed = encryptPayload(
       credential.id,
       credential.type,
       req.body.payload,
       nextVersion,
     );
-    const rotated = store.rotate(credential.id, ownerId(req), { ciphertext, timestamp });
+    const rotated = store.rotate(credential.id, ownerId(req), {
+      ciphertext: sealed.ciphertext,
+      wrappedDek: sealed.wrappedDek,
+      timestamp,
+    });
     audit({
       action: 'rotate',
       userId: ownerId(req),
