@@ -15,6 +15,7 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **PBKDF2**: 100.000 iteraciones con SHA-256 al **envolver** la DEK (no en cada byte del payload)
 - ✅ **IV de 12 bytes (NIST)** en payload y en el wrap de la DEK
 - ✅ **Persistencia SQLite**: las credenciales y versiones sobreviven al reinicio (`node:sqlite`, sin ORM)
+- ✅ **TTL y one-time reveal**: `expiresAt` y `maxReveals` por versión; reveal/verify vencidos o agotados responden **410** sin desencriptar
 - ✅ **Versionado y rotación**: cada cambio de payload crea una versión nueva; la anterior sigue revelable
 - ✅ **Auditoría**: generate, create, get, reveal, verify, rotate, delete y versions quedan en `audit_events` (sin plaintext)
 - ✅ **IDs UUID**: se abandonó el `index` numérico; cada credencial tiene identidad estable
@@ -27,9 +28,9 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **Módulo reutilizable**: `src/crypto/lib.js` se copia a otros proyectos Node sin dependencias extra
 - ✅ **Setup de entorno**: `npm run setup-env` genera o completa `.env`
 
-El almacén es un archivo SQLite (`data/bgvault.sqlite`). Las cuentas viven en la tabla `users`. Versiones antiguas sin `wrapped_dek` se siguen revelando con el cifrado directo (legado).
+Las cuentas viven en la tabla `users`. Versiones antiguas sin `wrapped_dek` se siguen revelando con el cifrado directo (legado).
 
-TTL / reveal de un solo uso y rotación de `ENCRYPTION_KEY` (re-wrap de DEKs) quedan para más adelante.
+Rotación de `ENCRYPTION_KEY` (re-wrap de DEKs) queda para más adelante.
 
 ## 🛠️ Tecnologías
 
@@ -330,6 +331,10 @@ Cifra el `payload` con **envelope encryption**: DEK aleatoria AES-256-GCM (AAD =
 | `service` | no | Servicio o producto asociado |
 | `tags` | no | Array de strings |
 | `payload` | sí | Objeto sensible (se cifra entero) |
+| `expiresAt` | no | ISO-8601 futuro; esa **versión** deja de revelarse al vencer |
+| `maxReveals` | no | Entero 1–10000; cada reveal/verify consume un uso |
+
+Omitidos: sin caducidad y revelaciones ilimitadas. `null` en rotate limpia el valor heredado.
 
 **`payload` según `type`:**
 
@@ -351,6 +356,11 @@ Cifra el `payload` con **envelope encryption**: DEK aleatoria AES-256-GCM (AAD =
     "service": "Gmail",
     "tags": ["email"],
     "currentVersion": 1,
+    "expiresAt": null,
+    "maxReveals": null,
+    "revealCount": 0,
+    "revealsRemaining": null,
+    "expired": false,
     "createdAt": "2026-08-16T01:35:56.264Z",
     "updatedAt": "2026-08-16T01:35:56.264Z"
   },
@@ -364,7 +374,7 @@ La respuesta **nunca** incluye `payload` ni ciphertext.
 
 | Status | Cuándo |
 |--------|--------|
-| 400 | `type` inválido, falta `name`, `payload` incompleto, `tags` mal formados |
+| 400 | `type` inválido, falta `name`, `payload` incompleto, `tags` mal formados, `expiresAt` pasado, `maxReveals` inválido |
 | 401 | Sin JWT, token inválido o expirado |
 
 ```json
@@ -477,11 +487,18 @@ Body: no hace falta.
     "password": "miContraseña123",
     "username": "usuario@example.com"
   },
+  "expiresAt": null,
+  "maxReveals": null,
+  "revealsRemaining": null,
   "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
 
 **404** si el id no existe **o pertenece a otro usuario**. **401** sin JWT.
+
+**410** `Credencial vencida` si `expiresAt` ya pasó. **410** `Límite de revelaciones alcanzado` si `maxReveals` se agotó. En ambos casos **no** se desencripta y no hay `payload`.
+
+GET/list de una versión quemada o vencida siguen devolviendo metadatos (`expired`, `revealsRemaining`).
 
 ---
 
@@ -500,7 +517,7 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 }
 ```
 
-`username` es opcional: si lo mandás, también se verifica.
+`username` es opcional: si lo mandás, también se verifica. Verify **consume** un uso de `maxReveals` (desencripta el payload).
 
 **Respuesta 200 (válida):**
 ```json
@@ -548,7 +565,7 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 
 ### 12. Rotar credencial (nueva versión)
 
-Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones anteriores. El tipo no cambia.
+Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones anteriores. El tipo no cambia. `expiresAt` y `maxReveals` de la versión nueva se **heredan** de la actual salvo que los mandes (o `null` para ilimitado). `revealCount` de la versión nueva arranca en 0.
 
 **POST** `/api/credentials/:id/rotate`  
 **Auth:** requerida
@@ -598,8 +615,24 @@ Devuelve el historial **sin** ciphertext ni plaintext.
   "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "currentVersion": 2,
   "versions": [
-    { "version": 1, "createdAt": "2026-08-16T01:35:56.264Z" },
-    { "version": 2, "createdAt": "2026-08-16T01:40:00.000Z" }
+    {
+      "version": 1,
+      "createdAt": "2026-08-16T01:35:56.264Z",
+      "expiresAt": null,
+      "maxReveals": null,
+      "revealCount": 0,
+      "revealsRemaining": null,
+      "expired": false
+    },
+    {
+      "version": 2,
+      "createdAt": "2026-08-16T01:40:00.000Z",
+      "expiresAt": null,
+      "maxReveals": null,
+      "revealCount": 0,
+      "revealsRemaining": null,
+      "expired": false
+    }
   ],
   "timestamp": "2026-08-16T01:40:00.000Z"
 }
@@ -667,14 +700,15 @@ Lista eventos de register, login, generate, create, get, reveal, verify, rotate,
 |--------|-------------|
 | 200 | Login, me, generate, listar, get, versions, reveal, verify, rotate, delete, audit |
 | 201 | Usuario o credencial creados |
-| 400 | Validación (email, password de cuenta, tipo, name, payload, verify sobre no-password) |
+| 400 | Validación (email, password de cuenta, tipo, name, payload, expiresAt, maxReveals, verify sobre no-password) |
 | 401 | JWT ausente, inválido, expirado; o login con credenciales incorrectas |
 | 404 | Credencial ajena, inexistente, o ruta inexistente |
 | 409 | Email ya registrado |
+| 410 | Versión vencida o sin revelaciones restantes |
 
 ## 🧪 Collection de Postman
 
-La collection **Crypto AES-256-GCM Vault** cubre el contrato: Health, Auth (401 / register / login / me), Generate, Create de los 4 tipos, validaciones 400, aislamiento entre usuarios (404 a credencial ajena), listado sin plaintext, reveal, verify, rotación, historial, auditoría y delete.
+La collection **Crypto AES-256-GCM Vault** cubre el contrato: Health, Auth, Generate, Create, Isolation, Reveal, Lifecycle (one-time y 410), verify, rotación, historial, auditoría y delete.
 
 Archivo: `collections/bgvault.postman_collection.json`  
 El `_postman_id` se mantiene fijo para que reimportar **actualice** la collection y no abra otra.
@@ -744,6 +778,18 @@ curl -s "$BASE/api/credentials?type=password" -H "$AUTH"
 curl -s -X POST "$BASE/api/credentials/<id>/reveal" \
   -H "$AUTH"
 
+# One-time
+curl -s -X POST "$BASE/api/credentials" \
+  -H "Content-Type: application/json" \
+  -H "$AUTH" \
+  -d '{
+    "type": "password",
+    "name": "OTP",
+    "maxReveals": 1,
+    "expiresAt": "2026-12-31T00:00:00.000Z",
+    "payload": { "password": "once" }
+  }'
+
 # Verificar password
 curl -s -X POST "$BASE/api/credentials/<id>/verify" \
   -H "Content-Type: application/json" \
@@ -796,7 +842,7 @@ bgvault/
 │   ├── middleware/
 │   │   └── requireAuth.js           # Bearer JWT + carga del usuario
 │   ├── db/
-│   │   └── sqlite.js                # node:sqlite, schema, WAL, migrate user_id / wrapped_dek
+│   │   └── sqlite.js                # node:sqlite, schema, WAL, migrate user_id / wrapped_dek / TTL
 │   ├── store/
 │   │   ├── usersStore.js            # Cuentas
 │   │   ├── credentialsStore.js      # Credenciales + versiones (scoped)
@@ -897,6 +943,7 @@ Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 ### Qué no se filtra
 
 - GET y list **no** devuelven ciphertext, `wrappedDek` ni plaintext
+- Reveal/verify de una versión vencida o quemada: **410** sin `payload`
 - Reveal es POST: la credencial no queda en la URL
 - No hay `?decrypt=true`
 - `X-Powered-By` deshabilitado; `X-Content-Type-Options: nosniff`; `X-Frame-Options: DENY`

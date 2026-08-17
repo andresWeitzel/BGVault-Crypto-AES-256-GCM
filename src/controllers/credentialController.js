@@ -4,9 +4,15 @@ const store = require('../store/credentialsStore');
 const auditStore = require('../store/auditStore');
 
 const CREDENTIAL_TYPES = ['password', 'api_key', 'token', 'note'];
+const MAX_REVEALS = 10000;
 
 function now() {
   return new Date().toISOString();
+}
+
+function revealsRemaining(credential) {
+  if (credential.maxReveals == null) return null;
+  return Math.max(0, credential.maxReveals - (credential.revealCount || 0));
 }
 
 function toPublic(credential) {
@@ -17,6 +23,11 @@ function toPublic(credential) {
     service: credential.service,
     tags: credential.tags,
     currentVersion: credential.currentVersion,
+    expiresAt: credential.expiresAt || null,
+    maxReveals: credential.maxReveals == null ? null : credential.maxReveals,
+    revealCount: credential.revealCount || 0,
+    revealsRemaining: revealsRemaining(credential),
+    expired: store.isExpired(credential.expiresAt),
     createdAt: credential.createdAt,
     updatedAt: credential.updatedAt,
   };
@@ -32,6 +43,93 @@ function audit({ action, userId = null, credentialId = null, version = null, ok,
   } catch (error) {
     console.error('Error al registrar auditoría:', error.message);
   }
+}
+
+function parseExpiresAt(value) {
+  if (value === undefined) return { omitted: true };
+  if (value === null || value === '') return { value: null };
+  if (typeof value !== 'string') return { error: 'expiresAt debe ser un string ISO-8601' };
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return { error: 'expiresAt inválido' };
+  if (ms <= Date.now()) return { error: 'expiresAt debe ser una fecha futura' };
+  return { value: new Date(ms).toISOString() };
+}
+
+function parseMaxReveals(value) {
+  if (value === undefined) return { omitted: true };
+  if (value === null) return { value: null };
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_REVEALS) {
+    return { error: `maxReveals debe ser un entero entre 1 y ${MAX_REVEALS}` };
+  }
+  return { value: parsed };
+}
+
+function resolveLifecycle(body, previous) {
+  const expires = parseExpiresAt(body?.expiresAt);
+  if (expires.error) return { error: expires.error };
+  const maxReveals = parseMaxReveals(body?.maxReveals);
+  if (maxReveals.error) return { error: maxReveals.error };
+
+  const resolvedExpires = expires.omitted ? (previous?.expiresAt ?? null) : expires.value;
+  const resolvedMax = maxReveals.omitted ? (previous?.maxReveals ?? null) : maxReveals.value;
+
+  if (resolvedExpires && Date.parse(resolvedExpires) <= Date.now()) {
+    return { error: 'expiresAt debe ser una fecha futura' };
+  }
+
+  return { expiresAt: resolvedExpires, maxReveals: resolvedMax };
+}
+
+function sendConsumeError(res, action, userId, credentialId, result, timestamp) {
+  if (result.status === 'not_found') {
+    audit({
+      action,
+      userId,
+      credentialId,
+      ok: false,
+      detail: { reason: 'not_found' },
+      at: timestamp,
+    });
+    return res.status(404).json({ error: 'Credencial no encontrada', timestamp });
+  }
+  if (result.status === 'version_not_found') {
+    audit({
+      action,
+      userId,
+      credentialId,
+      version: null,
+      ok: false,
+      detail: { reason: 'version_not_found' },
+      at: timestamp,
+    });
+    return res.status(404).json({ error: 'Versión no encontrada', timestamp });
+  }
+  if (result.status === 'expired') {
+    audit({
+      action,
+      userId,
+      credentialId,
+      version: result.record?.version,
+      ok: false,
+      detail: { reason: 'expired' },
+      at: timestamp,
+    });
+    return res.status(410).json({ error: 'Credencial vencida', timestamp });
+  }
+  if (result.status === 'exhausted') {
+    audit({
+      action,
+      userId,
+      credentialId,
+      version: result.record?.version,
+      ok: false,
+      detail: { reason: 'exhausted' },
+      at: timestamp,
+    });
+    return res.status(410).json({ error: 'Límite de revelaciones alcanzado', timestamp });
+  }
+  return null;
 }
 
 function parseVersion(value) {
@@ -88,11 +186,6 @@ function decryptPayload(credential) {
   );
 }
 
-function resolveRecord(id, requestedVersion, userId) {
-  if (requestedVersion == null) return store.findById(id, userId);
-  return store.findByIdAndVersion(id, requestedVersion, userId);
-}
-
 function createCredential(req, res) {
   const { type, name, service, tags, payload } = req.body || {};
   const timestamp = now();
@@ -116,6 +209,11 @@ function createCredential(req, res) {
     return res.status(400).json({ error: payloadError, timestamp });
   }
 
+  const lifecycle = resolveLifecycle(req.body, null);
+  if (lifecycle.error) {
+    return res.status(400).json({ error: lifecycle.error, timestamp });
+  }
+
   const normalizedTags = normalizeTags(tags);
   if (normalizedTags === null) {
     return res.status(400).json({
@@ -137,6 +235,9 @@ function createCredential(req, res) {
       currentVersion: 1,
       ciphertext: sealed.ciphertext,
       wrappedDek: sealed.wrappedDek,
+      expiresAt: lifecycle.expiresAt,
+      maxReveals: lifecycle.maxReveals,
+      revealCount: 0,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -245,54 +346,41 @@ function revealCredential(req, res) {
     });
   }
 
-  const exists = store.exists(req.params.id, ownerId(req));
-  if (!exists) {
-    audit({
-      action: 'reveal',
-      userId: ownerId(req),
-      credentialId: req.params.id,
-      ok: false,
-      detail: { reason: 'not_found' },
-    });
-    return res.status(404).json({
-      error: 'Credencial no encontrada',
-      timestamp,
-    });
-  }
-
-  const credential = resolveRecord(req.params.id, requestedVersion, ownerId(req));
-  if (!credential) {
-    audit({
-      action: 'reveal',
-      userId: ownerId(req),
-      credentialId: req.params.id,
-      version: requestedVersion,
-      ok: false,
-      detail: { reason: 'version_not_found' },
-    });
-    return res.status(404).json({
-      error: 'Versión no encontrada',
-      timestamp,
-    });
-  }
-
   try {
-    const payload = decryptPayload(credential);
+    const result = store.consumeUse(
+      req.params.id,
+      requestedVersion,
+      ownerId(req),
+      decryptPayload,
+    );
+    const blocked = sendConsumeError(
+      res,
+      'reveal',
+      ownerId(req),
+      req.params.id,
+      result,
+      timestamp,
+    );
+    if (blocked) return blocked;
+
     audit({
       action: 'reveal',
       userId: ownerId(req),
-      credentialId: credential.id,
-      version: credential.version,
+      credentialId: result.record.id,
+      version: result.record.version,
       ok: true,
     });
     return res.json({
-      id: credential.id,
-      type: credential.type,
-      name: credential.name,
-      service: credential.service,
-      version: credential.version,
-      currentVersion: credential.currentVersion,
-      payload,
+      id: result.record.id,
+      type: result.record.type,
+      name: result.record.name,
+      service: result.record.service,
+      version: result.record.version,
+      currentVersion: result.record.currentVersion,
+      expiresAt: result.record.expiresAt,
+      maxReveals: result.record.maxReveals,
+      revealsRemaining: revealsRemaining(result.record),
+      payload: result.payload,
       timestamp,
     });
   } catch (error) {
@@ -306,8 +394,8 @@ function revealCredential(req, res) {
 
 function verifyCredential(req, res) {
   const timestamp = now();
-  const exists = store.exists(req.params.id, ownerId(req));
-  if (!exists) {
+  const meta = store.findById(req.params.id, ownerId(req));
+  if (!meta) {
     audit({
       action: 'verify',
       userId: ownerId(req),
@@ -321,7 +409,6 @@ function verifyCredential(req, res) {
     });
   }
 
-  const meta = store.findById(req.params.id, ownerId(req));
   if (meta.type !== 'password') {
     return res.status(400).json({
       error: 'verify solo aplica a credenciales de tipo password',
@@ -337,14 +424,6 @@ function verifyCredential(req, res) {
     });
   }
 
-  const credential = resolveRecord(req.params.id, requestedVersion, ownerId(req));
-  if (!credential) {
-    return res.status(404).json({
-      error: 'Versión no encontrada',
-      timestamp,
-    });
-  }
-
   const { password, username } = req.body || {};
   if (!password) {
     return res.status(400).json({
@@ -354,7 +433,23 @@ function verifyCredential(req, res) {
   }
 
   try {
-    const stored = decryptPayload(credential);
+    const result = store.consumeUse(
+      req.params.id,
+      requestedVersion,
+      ownerId(req),
+      decryptPayload,
+    );
+    const blocked = sendConsumeError(
+      res,
+      'verify',
+      ownerId(req),
+      req.params.id,
+      result,
+      timestamp,
+    );
+    if (blocked) return blocked;
+
+    const stored = result.payload;
     const verified = {
       password: password === stored.password,
     };
@@ -366,17 +461,18 @@ function verifyCredential(req, res) {
     audit({
       action: 'verify',
       userId: ownerId(req),
-      credentialId: credential.id,
-      version: credential.version,
+      credentialId: result.record.id,
+      version: result.record.version,
       ok: isValid,
       detail: { isValid },
     });
 
     return res.json({
-      id: credential.id,
-      version: credential.version,
+      id: result.record.id,
+      version: result.record.version,
       isValid,
       verified,
+      revealsRemaining: revealsRemaining(result.record),
       message: isValid ? 'Valores válidos' : 'Valores inválidos',
       timestamp,
     });
@@ -411,6 +507,11 @@ function rotateCredential(req, res) {
     return res.status(400).json({ error: payloadError, timestamp });
   }
 
+  const lifecycle = resolveLifecycle(req.body, credential);
+  if (lifecycle.error) {
+    return res.status(400).json({ error: lifecycle.error, timestamp });
+  }
+
   try {
     const nextVersion = credential.currentVersion + 1;
     const sealed = encryptPayload(
@@ -423,6 +524,8 @@ function rotateCredential(req, res) {
       ciphertext: sealed.ciphertext,
       wrappedDek: sealed.wrappedDek,
       timestamp,
+      expiresAt: lifecycle.expiresAt,
+      maxReveals: lifecycle.maxReveals,
     });
     audit({
       action: 'rotate',

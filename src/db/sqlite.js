@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS credential_versions (
   version INTEGER NOT NULL,
   ciphertext TEXT NOT NULL,
   wrapped_dek TEXT,
+  expires_at TEXT,
+  max_reveals INTEGER,
+  reveal_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   PRIMARY KEY (credential_id, version),
   FOREIGN KEY (credential_id) REFERENCES credentials(id) ON DELETE CASCADE
@@ -77,6 +80,17 @@ function migrate(conn) {
   const versionColumns = columnNames(conn, 'credential_versions');
   if (!versionColumns.includes('wrapped_dek')) {
     conn.exec('ALTER TABLE credential_versions ADD COLUMN wrapped_dek TEXT');
+  }
+  if (!versionColumns.includes('expires_at')) {
+    conn.exec('ALTER TABLE credential_versions ADD COLUMN expires_at TEXT');
+  }
+  if (!versionColumns.includes('max_reveals')) {
+    conn.exec('ALTER TABLE credential_versions ADD COLUMN max_reveals INTEGER');
+  }
+  if (!versionColumns.includes('reveal_count')) {
+    conn.exec(
+      'ALTER TABLE credential_versions ADD COLUMN reveal_count INTEGER NOT NULL DEFAULT 0',
+    );
   }
 
   conn.exec('CREATE INDEX IF NOT EXISTS idx_credentials_user ON credentials(user_id)');
