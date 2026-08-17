@@ -22,9 +22,10 @@ Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptogra
 - ✅ **Metadatos en claro, payload cifrado**: `name`, `service` y `tags` se pueden filtrar; la clave/contraseña no aparece en GET
 - ✅ **Autenticación JWT**: `POST /api/auth/register` y `/login` emiten un Bearer HS256 (HMAC nativo); el hash de la cuenta es **scrypt**, no bcrypt
 - ✅ **Aislamiento por usuario**: cada credencial y cada evento de auditoría pertenece a un `user_id`; un JWT ajeno recibe 404, no 403
-- ✅ **Reveal por POST**: nada de `?decrypt=true` en la URL (evita logs de proxies y browsers)
+- ✅ **Sobre JSON uniforme**: éxitos llevan `requestId` + `timestamp`; errores son `{ error: { code, message }, requestId, timestamp }`
+- ✅ **Rate limit**: tope en register/login y en reveal/verify (`X-RateLimit-*`, **429** `RATE_LIMITED`)
 - ✅ **Sin clave por defecto**: el servidor no arranca con `default-key-change-me…`; exige `ENCRYPTION_KEY` y `JWT_SECRET` (≥ 32 caracteres)
-- ✅ **Collection de Postman**: casos de éxito (201/200) y error (400/401/404/409) con scripts `pm.test` ejecutables desde el Runner
+- ✅ **Collection de Postman**: casos de éxito (201/200) y error (400/401/404/409/410) con scripts `pm.test` ejecutables desde el Runner
 - ✅ **Módulo reutilizable**: `src/crypto/lib.js` se copia a otros proyectos Node sin dependencias extra
 - ✅ **Setup de entorno**: `npm run setup-env` genera o completa `.env`
 
@@ -61,6 +62,10 @@ npm run server
 | `JWT_SECRET` | Firma HMAC-SHA256 de los tokens (distinta de `ENCRYPTION_KEY`) |
 | `JWT_EXPIRES_IN` | Segundos de vida del JWT (por defecto `28800` = 8 h; min 60, máx 7 días) |
 | `SQLITE_PATH` | Ruta del archivo SQLite (por defecto `data/bgvault.sqlite`) |
+| `RATE_LIMIT_AUTH_MAX` | Tope de register/login por IP (por defecto `60`) |
+| `RATE_LIMIT_AUTH_WINDOW_MS` | Ventana de auth en ms (por defecto `600000` = 10 min) |
+| `RATE_LIMIT_REVEAL_MAX` | Tope de reveal/verify por usuario (por defecto `120`) |
+| `RATE_LIMIT_REVEAL_WINDOW_MS` | Ventana de reveal/verify en ms (por defecto `60000` = 1 min) |
 
 En la collection de Postman el usuario de demo es `demo@bgvault.local` / `bgvault-dev-password` (se crea en el Runner). En producción usá valores distintos y largos.
 
@@ -137,11 +142,49 @@ Todas las rutas `/api/credentials*`, `/api/audit*`, `POST /api/generate` y `GET 
 Authorization: Bearer <accessToken>
 ```
 
-Sin header, con un token inválido, expirado o de un usuario borrado: **401** `No autorizado`.
+Sin header, con un token inválido, expirado o de un usuario borrado: **401** `UNAUTHORIZED`.
 
-El JWT es **HS256** firmado con `JWT_SECRET` (`node:crypto.createHmac`). La contraseña de la cuenta se guarda con **scrypt** (`N=16384, r=8, p=1`); nunca viaja de vuelta en JSON. Un login fallido responde siempre `Credenciales inválidas` (no dice si el email existe).
+El JWT es **HS256** firmado con `JWT_SECRET` (`node:crypto.createHmac`). La contraseña de la cuenta se guarda con **scrypt** (`N=16384, r=8, p=1`); nunca viaja de vuelta en JSON. Un login fallido responde **401** `INVALID_CREDENTIALS` (no dice si el email existe).
 
 Un usuario **no ve** las credenciales de otro: list, get, reveal, rotate y audit filtran por `user_id`. Si el id existe pero es de otro dueño, la API responde **404** (no 403), para no filtrar existencia.
+
+## 📦 Contrato de respuesta
+
+Toda respuesta JSON incluye `timestamp` y `requestId` (también en el header `X-Request-Id`). Si mandás `X-Request-Id` (8–128 caracteres `A-Za-z0-9._:-`), se reutiliza; si no, se genera un UUID.
+
+**Éxito** — el recurso va en `credential` / `credentials` / `user`. Reveal suma `payload` al lado de `credential` (el GET nunca lleva `payload`).
+
+**Error:**
+
+```json
+{
+  "error": {
+    "code": "CREDENTIAL_EXPIRED",
+    "message": "Credencial vencida"
+  },
+  "requestId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "timestamp": "2026-08-16T01:35:56.264Z"
+}
+```
+
+| `code` | Status | Cuándo |
+|--------|--------|--------|
+| `VALIDATION` | 400 | Body o query inválido |
+| `JSON_INVALID` | 400 | JSON mal formado |
+| `UNAUTHORIZED` | 401 | JWT ausente, inválido o usuario borrado |
+| `INVALID_CREDENTIALS` | 401 | Login con email/password incorrectos |
+| `CREDENTIAL_NOT_FOUND` | 404 | Credencial inexistente o de otro usuario |
+| `VERSION_NOT_FOUND` | 404 | Número de versión inexistente |
+| `ROUTE_NOT_FOUND` | 404 | Ruta HTTP desconocida |
+| `EMAIL_TAKEN` | 409 | Register con email ya usado |
+| `CREDENTIAL_EXPIRED` | 410 | `expiresAt` vencido (sin desencriptar) |
+| `REVEAL_LIMIT` | 410 | `maxReveals` agotado (sin desencriptar) |
+| `RATE_LIMITED` | 429 | Tope de register/login o reveal/verify |
+| `INTERNAL` | 500 | Fallo no controlado (mensaje genérico) |
+
+Los 500 loguean el `requestId` en consola para correlacionar. No se usa el texto de `message` como API estable: el cliente debe ramificar por `code`.
+
+Register/login: 60 req / 10 min por IP. Reveal y verify: 120 / min por usuario. Headers `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; en 429 también `Retry-After`.
 
 ## 📡 API Endpoints
 
@@ -166,6 +209,7 @@ Verifica que el proceso esté vivo. No requiere auth.
   "persistence": "sqlite",
   "auth": "jwt",
   "crypto": "envelope",
+  "requestId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
@@ -215,8 +259,9 @@ La respuesta **nunca** incluye `password` ni `passwordHash`.
 
 | Status | Cuándo |
 |--------|--------|
-| 400 | Falta email/password, email inválido, password corto |
-| 409 | `Email ya registrado` |
+| 400 | `VALIDATION` — falta email/password, email inválido, password corto |
+| 409 | `EMAIL_TAKEN` — email ya registrado |
+| 429 | `RATE_LIMITED` — tope de register/login por IP |
 
 ---
 
@@ -228,7 +273,7 @@ La respuesta **nunca** incluye `password` ni `passwordHash`.
 
 Mismo body que register. Respuesta idéntica salvo `message`: `"Sesión iniciada"`.
 
-**Errores:** `400` si faltan campos; `401` `Credenciales inválidas` si el email no existe o la contraseña no coincide.
+**Errores:** `400` `VALIDATION` si faltan campos; `401` `INVALID_CREDENTIALS` si el email no existe o la contraseña no coincide; `429` `RATE_LIMITED` si se supera el tope por IP.
 
 ---
 
@@ -379,7 +424,8 @@ La respuesta **nunca** incluye `payload` ni ciphertext.
 
 ```json
 {
-  "error": "name es requerido",
+  "error": { "code": "VALIDATION", "message": "name es requerido" },
+  "requestId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
@@ -461,7 +507,8 @@ Otros tipos de ejemplo para crear:
 **Respuesta 404:**
 ```json
 {
-  "error": "Credencial no encontrada",
+  "error": { "code": "CREDENTIAL_NOT_FOUND", "message": "Credencial no encontrada" },
+  "requestId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
@@ -479,24 +526,28 @@ Body: no hace falta.
 **Respuesta 200:**
 ```json
 {
-  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "type": "password",
-  "name": "Gmail personal",
-  "service": "Gmail",
+  "credential": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "type": "password",
+    "name": "Gmail personal",
+    "service": "Gmail",
+    "expiresAt": null,
+    "maxReveals": null,
+    "revealsRemaining": null,
+    "version": 1
+  },
   "payload": {
     "password": "miContraseña123",
     "username": "usuario@example.com"
   },
-  "expiresAt": null,
-  "maxReveals": null,
-  "revealsRemaining": null,
+  "requestId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
 
-**404** si el id no existe **o pertenece a otro usuario**. **401** sin JWT.
+**404** `CREDENTIAL_NOT_FOUND` si el id no existe **o pertenece a otro usuario**. **401** `UNAUTHORIZED` sin JWT.
 
-**410** `Credencial vencida` si `expiresAt` ya pasó. **410** `Límite de revelaciones alcanzado` si `maxReveals` se agotó. En ambos casos **no** se desencripta y no hay `payload`.
+**410** `CREDENTIAL_EXPIRED` si `expiresAt` ya pasó. **410** `REVEAL_LIMIT` si `maxReveals` se agotó. En ambos casos **no** se desencripta y no hay `payload`. **429** `RATE_LIMITED` si se supera el tope de reveal/verify.
 
 GET/list de una versión quemada o vencida siguen devolviendo metadatos (`expired`, `revealsRemaining`).
 
@@ -522,7 +573,11 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 **Respuesta 200 (válida):**
 ```json
 {
-  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "credential": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "type": "password",
+    "version": 1
+  },
   "isValid": true,
   "verified": {
     "password": true,
@@ -539,9 +594,11 @@ Compara un candidato contra el payload almacenado. **Solo aplica a `type=passwor
 
 | Status | Cuándo |
 |--------|--------|
-| 400 | El registro no es `password`, o falta `password` en el body |
-| 401 | Sin JWT |
-| 404 | Id inexistente |
+| 400 | `VALIDATION` — el registro no es `password`, o falta `password` en el body |
+| 401 | `UNAUTHORIZED` — sin JWT |
+| 404 | `CREDENTIAL_NOT_FOUND` — id inexistente o de otro usuario |
+| 410 | `CREDENTIAL_EXPIRED` / `REVEAL_LIMIT` — misma regla que reveal |
+| 429 | `RATE_LIMITED` — tope de reveal/verify |
 
 ---
 
@@ -612,8 +669,10 @@ Devuelve el historial **sin** ciphertext ni plaintext.
 **Respuesta 200:**
 ```json
 {
-  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "currentVersion": 2,
+  "credential": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "currentVersion": 2
+  },
   "versions": [
     {
       "version": 1,
@@ -652,8 +711,8 @@ El reveal usa la versión actual si no mandás `version`. El número de versión
 }
 ```
 
-**Respuesta 200:** incluye `version`, `currentVersion` y `payload`.  
-**404** `Versión no encontrada` si ese número no existe.
+**Respuesta 200:** `credential` (con `version` y `currentVersion`) más `payload`.  
+**404** `VERSION_NOT_FOUND` si ese número no existe.
 
 Verify también acepta `"version": 1` opcional (por defecto, la actual).
 
@@ -705,6 +764,7 @@ Lista eventos de register, login, generate, create, get, reveal, verify, rotate,
 | 404 | Credencial ajena, inexistente, o ruta inexistente |
 | 409 | Email ya registrado |
 | 410 | Versión vencida o sin revelaciones restantes |
+| 429 | Rate limit en register/login o reveal/verify |
 
 ## 🧪 Collection de Postman
 
@@ -733,8 +793,8 @@ Si el Runner dice **Environment: none**, está bien: el token se guarda en **var
 ```bash
 export BASE="http://localhost:3000"
 
-# Salud
-curl -s "$BASE/health"
+# Salud (X-Request-Id en header y body)
+curl -si "$BASE/health" -H "X-Request-Id: demo-req-0001"
 
 # Registrar (o login si el email ya existe)
 curl -s -X POST "$BASE/api/auth/register" \
@@ -840,7 +900,11 @@ bgvault/
 │   │   ├── password.js              # scrypt (hash / verify)
 │   │   └── jwt.js                   # JWT HS256 nativo
 │   ├── middleware/
-│   │   └── requireAuth.js           # Bearer JWT + carga del usuario
+│   │   ├── requireAuth.js           # Bearer JWT + carga del usuario
+│   │   ├── requestId.js             # X-Request-Id (UUID o correlacioná el tuyo)
+│   │   └── rateLimit.js             # tope in-memory (auth + reveal)
+│   ├── http/
+│   │   └── respond.js               # envelope { error: { code, message } }
 │   ├── db/
 │   │   └── sqlite.js                # node:sqlite, schema, WAL, migrate user_id / wrapped_dek / TTL
 │   ├── store/

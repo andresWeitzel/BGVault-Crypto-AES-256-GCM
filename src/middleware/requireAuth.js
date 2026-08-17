@@ -1,28 +1,22 @@
 const jwt = require('../auth/jwt');
 const usersStore = require('../store/usersStore');
-
-function unauthorized(res) {
-  return res.status(401).json({
-    error: 'No autorizado',
-    timestamp: new Date().toISOString(),
-  });
-}
+const { CODES, sendError } = require('../http/respond');
 
 function requireAuth(req, res, next) {
   const authorization = req.get('authorization') || '';
   if (!authorization.toLowerCase().startsWith('bearer ')) {
-    return unauthorized(res);
+    return sendError(res, 401, CODES.UNAUTHORIZED, 'No autorizado');
   }
 
   const token = authorization.slice(7).trim();
   const payload = jwt.verify(token);
   if (!payload) {
-    return unauthorized(res);
+    return sendError(res, 401, CODES.UNAUTHORIZED, 'No autorizado');
   }
 
   const user = usersStore.findById(payload.sub);
   if (!user) {
-    return unauthorized(res);
+    return sendError(res, 401, CODES.UNAUTHORIZED, 'No autorizado');
   }
 
   req.user = { id: user.id, email: user.email };
