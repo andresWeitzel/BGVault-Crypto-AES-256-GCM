@@ -1,70 +1,71 @@
 #!/usr/bin/env node
 
 /**
- * Script para configurar el archivo .env con valores encriptados
+ * Genera o completa .env con ENCRYPTION_KEY y API_KEY.
  * Uso: npm run setup-env
  */
 
 const fs = require('node:fs');
-const path = require('node:path');
-const readline = require('node:readline');
-const { encrypt } = require('../crypto/lib');
+const crypto = require('node:crypto');
+const { ENV_FILE, loadEnvFile, MIN_KEY_LENGTH, MIN_API_KEY_LENGTH } = require('../config/env');
 
-// Raíz del proyecto (dos niveles arriba de src/setup)
-const PROJECT_ROOT = path.resolve(__dirname, '../..');
-const ENV_FILE = path.join(PROJECT_ROOT, '.env');
+const LOCAL_API_KEY = 'bgvault-dev-api-key-local';
 
-// Obtener la clave de encriptación
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-key-change-me-in-production-32chars!!';
+loadEnvFile();
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
-
-function question(query) {
-  return new Promise(resolve => rl.question(query, resolve));
+function generateSecret(bytes) {
+  return crypto.randomBytes(bytes).toString('hex');
 }
 
-async function setupEnv() {
-  console.log('🔐 Configuración del archivo .env con valores encriptados\n');
-  console.log('⚠️  IMPORTANTE: Guarda la clave de encriptación de forma segura!');
-  console.log(`   Clave actual: ${ENCRYPTION_KEY.substring(0, 10)}...\n`);
-  
-  const password = await question('Contraseña a encriptar: ');
-  const username = await question('Usuario (opcional, Enter para omitir): ') || 'N/A';
-  const service = await question('Servicio (opcional, Enter para omitir): ') || 'N/A';
-  
-  // Encriptar valores
-  const encryptedPassword = encrypt(password, ENCRYPTION_KEY);
-  const encryptedUsername = encrypt(username, ENCRYPTION_KEY);
-  const encryptedService = encrypt(service, ENCRYPTION_KEY);
-  
-  // Crear contenido del .env
-  const envContent = `# Archivo de configuración para el cliente (valores encriptados)
-# Edita estas variables según tus necesidades
-# Para configurar nuevos valores, ejecuta: npm run setup-env
-# Para ver valores desencriptados, ejecuta: npm run decrypt-env
+function currentEnvMap() {
+  if (!fs.existsSync(ENV_FILE)) return {};
+  const map = {};
+  for (const line of fs.readFileSync(ENV_FILE, 'utf8').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq <= 0) continue;
+    map[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
+  }
+  return map;
+}
 
-PASSWORD_ENCRYPTED=${encryptedPassword}
-USERNAME_ENCRYPTED=${encryptedUsername}
-SERVICE_ENCRYPTED=${encryptedService}
+function setupEnv() {
+  const existing = currentEnvMap();
+  const generated = [];
 
-# Clave de encriptación (NO compartas este archivo!)
-# ENCRYPTION_KEY=${ENCRYPTION_KEY}
-`;
+  let encryptionKey = process.env.ENCRYPTION_KEY || existing.ENCRYPTION_KEY;
+  let apiKey = process.env.API_KEY || existing.API_KEY;
+  const port = process.env.PORT || existing.PORT || '3000';
 
-  // Escribir archivo
+  if (!encryptionKey || encryptionKey.length < MIN_KEY_LENGTH) {
+    encryptionKey = generateSecret(32);
+    generated.push('ENCRYPTION_KEY');
+  }
+  if (!apiKey || apiKey.length < MIN_API_KEY_LENGTH) {
+    apiKey = LOCAL_API_KEY;
+    generated.push('API_KEY');
+  }
+
+  const preserved = Object.entries(existing)
+    .filter(([key]) => !['ENCRYPTION_KEY', 'API_KEY', 'PORT'].includes(key))
+    .map(([key, value]) => `${key}=${value}`);
+
+  const envContent = `# BGVault — no subas este archivo
+PORT=${port}
+ENCRYPTION_KEY=${encryptionKey}
+API_KEY=${apiKey}
+${preserved.length ? `\n${preserved.join('\n')}\n` : ''}`;
+
   fs.writeFileSync(ENV_FILE, envContent, 'utf8');
-  
-  console.log('\n✅ Archivo .env creado con valores encriptados!');
-  console.log(`   Ubicación: ${ENV_FILE}\n`);
-  
-  rl.close();
+
+  console.log('Archivo .env listo:', ENV_FILE);
+  if (generated.length) {
+    console.log('Generado:', generated.join(', '));
+  } else {
+    console.log('Se conservaron ENCRYPTION_KEY y API_KEY existentes.');
+  }
+  console.log('Postman: collection Crypto AES-256-GCM Vault → Variables → apiKey = bgvault-dev-api-key-local');
 }
 
-setupEnv().catch(error => {
-  console.error('Error:', error);
-  process.exit(1);
-});
-
+setupEnv();

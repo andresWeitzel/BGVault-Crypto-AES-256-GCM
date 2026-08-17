@@ -1,64 +1,94 @@
-# 🔐 Sistema de Gestión de Contraseñas Encriptadas
+# 🔐 BGVault — Sistema de Gestión de Contraseñas Encriptadas (AES-256-GCM)
 
-Sistema de gestión de contraseñas que utiliza encriptación AES-256-GCM para almacenar de forma segura contraseñas, usuarios y servicios. Desarrollado con Node.js y Express, utilizando únicamente módulos nativos de Node.js para todas las operaciones criptográficas.
+Vault REST para almacenar de forma segura **contraseñas, API keys, tokens y notas**. Cada contraseña se cifra con **AES-256-GCM** antes de persistirse; los listados y el GET por id solo devuelven metadatos. El texto plano nunca viaja en query string: sale únicamente por `POST /reveal` con autenticación.
+
+Desarrollado con Node.js y Express, usando **solo `node:crypto`** para criptografía (sin `bcrypt`, `crypto-js` ni KMS externos).
 
 ## 📋 Características
 
-- ✅ **Encriptación AES-256-GCM**: Todas las contraseñas se encriptan antes de almacenarse
-- ✅ **Almacenamiento en memoria**: Los datos se almacenan en memoria durante la ejecución del servidor
-- ✅ **API RESTful**: Endpoints para almacenar, obtener y verificar contraseñas
-- ✅ **Scripts de cliente**: Scripts bash para interactuar con la API
-- ✅ **Configuración interactiva**: Setup interactivo para crear archivos `.env` con valores encriptados
-- ✅ **Solo módulos nativos**: Usa únicamente `node:crypto` de Node.js, sin dependencias externas de criptografía
+- ✅ **Vault de contraseñas**: no es un encriptador suelto — es una API para crear, listar, revelar, verificar y eliminar contraseñas
+- ✅ **Cuatro tipos**: `password`, `api_key`, `token` y `note`, cada uno con payload validado
+- ✅ **AES-256-GCM**: cifrado autenticado; el tag GCM detecta manipulación del ciphertext
+- ✅ **AAD ligado a la contraseña**: Additional Authenticated Data `secret:<id>:<type>` — un blob no se puede reubicar en otro id o tipo
+- ✅ **IV de 12 bytes (NIST)** y salt de 64 bytes únicos por cada cifrado
+- ✅ **PBKDF2**: 100.000 iteraciones con SHA-256 para derivar la clave AES-256
+- ✅ **IDs UUID**: se abandonó el `index` numérico; cada contraseña tiene identidad estable
+- ✅ **Metadatos en claro, payload cifrado**: `name`, `service` y `tags` se pueden filtrar; la clave/contraseña no aparece en GET
+- ✅ **Reveal por POST**: nada de `?decrypt=true` en la URL (evita logs de proxies y browsers)
+- ✅ **Autenticación de servicio**: header `X-API-Key` o `Authorization: Bearer`, comparado con `timingSafeEqual`
+- ✅ **Sin clave por defecto**: el servidor no arranca con `default-key-change-me…`; exige `ENCRYPTION_KEY` (≥ 32 caracteres) y `API_KEY`
+- ✅ **Collection de Postman**: casos de éxito (201/200) y error (400/401/404) con scripts `pm.test` ejecutables desde el Runner
+- ✅ **Módulo reutilizable**: `src/crypto/lib.js` se copia a otros proyectos Node sin dependencias extra
+- ✅ **Setup de entorno**: `npm run setup-env` genera o completa `.env`
+
+El almacén actual es **en memoria** (las contraseñas se pierden al reiniciar). Persistencia y usuarios multi-tenant son la siguiente fase.
 
 ## 🛠️ Tecnologías
 
-- **Node.js**: Runtime de JavaScript
-- **Express**: Framework web para Node.js
-- **node:crypto**: Módulo nativo de Node.js para operaciones criptográficas
-- **AES-256-GCM**: Algoritmo de encriptación simétrica con autenticación
+- **Node.js**: runtime (18+ recomendado)
+- **Express**: API HTTP
+- **node:crypto**: único motor criptográfico
+- **AES-256-GCM**: cifrado simétrico con autenticación
+- **Postman Collection v2.1**: pruebas de contrato de la API
 
 ## 📦 Instalación
 
 1. Clonar el repositorio o descargar el proyecto
-2. Instalar dependencias:
+2. Instalar dependencias y generar el entorno:
 
 ```bash
 npm install
+npm run setup-env
+npm run server
 ```
+
+`setup-env` escribe `.env` en la raíz con:
+
+| Variable | Rol |
+|----------|-----|
+| `PORT` | Puerto HTTP (por defecto `3000`) |
+| `ENCRYPTION_KEY` | Clave maestra de cifrado (≥ 32 caracteres, aleatoria) |
+| `API_KEY` | Clave de acceso a `/api/secrets*` |
+
+En desarrollo local la API key de la collection es `bgvault-dev-api-key-local` (la misma que espera Postman). En producción usá valores distintos y largos.
+
+**⚠️ IMPORTANTE**: no subas `.env` al repositorio (está en `.gitignore`).
 
 ## ⚙️ Configuración
 
-### Configurar archivo .env
+### Archivo `.env`
 
-El proyecto requiere un archivo `.env` en la raíz con valores encriptados. Puedes crearlo de dos formas:
+Podés crearlo de tres formas:
 
-#### Opción 1: Setup interactivo (Recomendado)
+#### Opción 1: Setup (recomendado)
 
 ```bash
 npm run setup-env
 ```
 
-Este comando te pedirá:
-- Contraseña a encriptar (requerida)
-- Usuario (opcional)
-- Servicio (opcional)
+Si faltan claves, genera `ENCRYPTION_KEY` (32 bytes en hex) y completa `API_KEY`. Si ya existen, las conserva.
 
-Y creará automáticamente el archivo `.env` con los valores encriptados.
+#### Opción 2: Copiar el ejemplo
 
-#### Opción 2: El script de cliente lo crea automáticamente
+```bash
+cp .env.example .env
+```
 
-Si ejecutas `npm run client:post` sin tener un archivo `.env`, el script te pedirá los valores interactivamente y creará el archivo automáticamente.
+Completá `ENCRYPTION_KEY` (mínimo 32 caracteres) y, si hace falta, `API_KEY`.
 
-### Clave de encriptación
-
-Por defecto, el proyecto usa la clave: `default-key-change-me-in-production-32chars!!`
-
-**⚠️ IMPORTANTE**: En producción, configura la variable de entorno `ENCRYPTION_KEY` con una clave segura:
+#### Opción 3: Variables de entorno del sistema
 
 ```bash
 export ENCRYPTION_KEY="tu-clave-segura-de-32-caracteres-minimo"
+export API_KEY="tu-api-key-de-servicio"
+export PORT=3000
 ```
+
+El servidor carga `.env` al arrancar, pero **no pisa** variables ya definidas en el proceso.
+
+### Clave de encriptación
+
+No hay clave hardcodeada. Si `ENCRYPTION_KEY` falta, mide menos de 32 caracteres o es la antigua clave insegura de demo, el proceso **termina con error** y pide `npm run setup-env`.
 
 ## 🚀 Uso
 
@@ -68,405 +98,526 @@ export ENCRYPTION_KEY="tu-clave-segura-de-32-caracteres-minimo"
 npm run server
 ```
 
-El servidor se iniciará en `http://localhost:3000` (o el puerto especificado en `PORT`).
+El vault queda en `http://localhost:3000` (o el `PORT` configurado). En consola:
+
+```
+BGVault corriendo en http://localhost:3000
+Auth: header X-API-Key o Authorization: Bearer
+```
 
 ### Scripts disponibles
 
 | Script | Descripción |
 |--------|-------------|
-| `npm run server` | Inicia el servidor Express |
-| `npm run client:post` | Envía una contraseña al servidor usando valores del `.env` |
-| `npm run client:get` | Obtiene todas las contraseñas almacenadas |
-| `npm run setup-env` | Configura el archivo `.env` con valores encriptados |
-| `npm run decrypt-env` | Muestra los valores desencriptados del archivo `.env` |
+| `npm run setup-env` | Genera o completa `.env` (`ENCRYPTION_KEY`, `API_KEY`) |
+| `npm run server` | Inicia el vault Express |
+| `npm run client:post` | Crea una contraseña `password` de demo (requiere `API_KEY`) |
+| `npm run client:get` | Lista contraseñas (solo metadatos) |
+| `npm run decrypt-env` | Muestra variables `*_ENCRYPTED` del `.env`, si existen |
+
+## 🔑 Autenticación
+
+`GET /health` es público.
+
+Todas las rutas `/api/secrets*` exigen API key. Sin ella o con una inválida: **401**.
+
+```
+X-API-Key: bgvault-dev-api-key-local
+```
+
+o:
+
+```
+Authorization: Bearer bgvault-dev-api-key-local
+```
+
+La comparación usa `crypto.timingSafeEqual` para no filtrar la key por timing.
 
 ## 📡 API Endpoints
 
 ### Base URL
+
 ```
 http://localhost:3000
 ```
 
+---
+
 ### 1. Health Check
 
-Verifica el estado del servidor.
+Verifica que el proceso esté vivo. No requiere auth.
 
 **GET** `/health`
 
-**Respuesta:**
+**Respuesta 200:**
 ```json
 {
   "status": "OK",
-  "timestamp": "2026-01-16T13:35:56.264Z"
+  "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
 
-### 2. Almacenar Contraseña
+---
 
-Almacena una nueva contraseña encriptada.
+### 2. Crear contraseña
 
-**POST** `/api/passwords`
+Cifra el `payload` con AES-256-GCM (AAD = `secret:<id>:<type>`) y guarda el registro.
 
-**Body:**
+**POST** `/api/secrets`  
+**Auth:** requerida  
+**Status:** `201`
+
+**Body (password):**
 ```json
 {
-  "password": "miContraseña123",
-  "username": "usuario@example.com",
-  "service": "Gmail"
-}
-```
-
-**Parámetros:**
-- `password` (requerido): Contraseña a almacenar
-- `username` (opcional): Nombre de usuario o email
-- `service` (opcional): Nombre del servicio
-
-**Respuesta exitosa (200):**
-```json
-{
-  "message": "Contraseña almacenada correctamente (encriptada con AES-256-GCM)",
-  "count": 1,
-  "timestamp": "2026-01-16T13:35:56.264Z"
-}
-```
-
-**Respuesta de error (400):**
-```json
-{
-  "error": "La contraseña es requerida",
-  "timestamp": "2026-01-16T13:35:56.264Z"
-}
-```
-
-### 3. Obtener Contraseñas
-
-Obtiene todas las contraseñas almacenadas (encriptadas).
-
-**GET** `/api/passwords`
-
-**Query Parameters:**
-- `decrypt` (opcional): Si es `true`, desencripta y muestra los valores
-
-**Ejemplo:**
-```
-GET /api/passwords
-GET /api/passwords?decrypt=true
-```
-
-**Respuesta (sin desencriptar):**
-```json
-{
-  "message": "Contraseñas almacenadas (encriptadas con AES-256-GCM)",
-  "note": "Para ver valores desencriptados, agrega ?decrypt=true a la URL",
-  "passwords": [
-    {
-      "index": 0,
-      "passwordEncrypted": "salt:iv:tag:encrypted",
-      "usernameEncrypted": "salt:iv:tag:encrypted",
-      "serviceEncrypted": "salt:iv:tag:encrypted",
-      "timestamp": "2026-01-16T13:35:56.264Z"
-    }
-  ],
-  "count": 1,
-  "timestamp": "2026-01-16T13:35:56.264Z"
-}
-```
-
-**Respuesta (con decrypt=true):**
-```json
-{
-  "message": "Contraseñas almacenadas (encriptadas con AES-256-GCM)",
-  "note": "Valores desencriptados mostrados",
-  "passwords": [
-    {
-      "index": 0,
-      "passwordEncrypted": "salt:iv:tag:encrypted",
-      "usernameEncrypted": "salt:iv:tag:encrypted",
-      "serviceEncrypted": "salt:iv:tag:encrypted",
-      "password": "miContraseña123",
-      "username": "usuario@example.com",
-      "service": "Gmail",
-      "timestamp": "2026-01-16T13:35:56.264Z"
-    }
-  ],
-  "count": 1,
-  "timestamp": "2026-01-16T13:35:56.264Z"
-}
-```
-
-### 4. Verificar Contraseña
-
-Verifica si una contraseña coincide con una almacenada.
-
-**POST** `/api/passwords/verify`
-
-**Body:**
-```json
-{
-  "password": "miContraseña123",
-  "index": 0
-}
-```
-
-**Parámetros:**
-- `password` (requerido): Contraseña a verificar
-- `index` (requerido): Índice de la contraseña almacenada
-
-**Respuesta exitosa (200):**
-```json
-{
-  "isValid": true,
-  "message": "Contraseña válida",
-  "index": 0,
-  "timestamp": "2026-01-16T13:35:56.264Z"
-}
-```
-
-**Respuesta de error (400):**
-```json
-{
-  "error": "La contraseña y el índice son requeridos",
-  "timestamp": "2026-01-16T13:35:56.264Z"
-}
-```
-
-**Respuesta de error (404):**
-```json
-{
-  "error": "Contraseña no encontrada en el índice especificado",
-  "timestamp": "2026-01-16T13:35:56.264Z"
-}
-```
-
-### 5. Verificar Todos los Campos
-
-Verifica password, username y service de un registro.
-
-**POST** `/api/passwords/verify-all`
-
-**Body:**
-```json
-{
-  "password": "miContraseña123",
-  "username": "usuario@example.com",
+  "type": "password",
+  "name": "Gmail personal",
   "service": "Gmail",
-  "index": 0
+  "tags": ["email"],
+  "payload": {
+    "password": "miContraseña123",
+    "username": "usuario@example.com"
+  }
 }
 ```
 
 **Parámetros:**
-- `index` (requerido): Índice del registro a verificar
-- `password` (opcional): Contraseña a verificar
-- `username` (opcional): Usuario a verificar
-- `service` (opcional): Servicio a verificar
 
-**Respuesta exitosa (200):**
+| Campo | Requerido | Descripción |
+|-------|-----------|-------------|
+| `type` | sí | `password` \| `api_key` \| `token` \| `note` |
+| `name` | sí | Nombre visible (metadato en claro) |
+| `service` | no | Servicio o producto asociado |
+| `tags` | no | Array de strings |
+| `payload` | sí | Objeto sensible (se cifra entero) |
+
+**`payload` según `type`:**
+
+| type | Campo requerido | Campos opcionales |
+|------|-----------------|-------------------|
+| `password` | `payload.password` | `payload.username` |
+| `api_key` | `payload.key` | — |
+| `token` | `payload.token` | `payload.expiresAt`, etc. |
+| `note` | `payload.text` | — |
+
+**Respuesta 201:**
 ```json
 {
-  "index": 0,
+  "message": "Secreto almacenado",
+  "secret": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "type": "password",
+    "name": "Gmail personal",
+    "service": "Gmail",
+    "tags": ["email"],
+    "createdAt": "2026-08-16T01:35:56.264Z",
+    "updatedAt": "2026-08-16T01:35:56.264Z"
+  },
+  "timestamp": "2026-08-16T01:35:56.264Z"
+}
+```
+
+La respuesta **nunca** incluye `payload` ni ciphertext.
+
+**Errores:**
+
+| Status | Cuándo |
+|--------|--------|
+| 400 | `type` inválido, falta `name`, `payload` incompleto, `tags` mal formados |
+| 401 | Sin API key o key inválida |
+
+```json
+{
+  "error": "name es requerido",
+  "timestamp": "2026-08-16T01:35:56.264Z"
+}
+```
+
+---
+
+### 3. Listar contraseñas
+
+Devuelve solo metadatos. Se puede filtrar.
+
+**GET** `/api/secrets`  
+**GET** `/api/secrets?type=password`  
+**GET** `/api/secrets?service=Gmail`  
+**Auth:** requerida
+
+**Query:**
+
+| Param | Descripción |
+|-------|-------------|
+| `type` | Filtra por tipo |
+| `service` | Filtra por servicio (match exacto) |
+
+**Respuesta 200:**
+```json
+{
+  "secrets": [
+    {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "type": "password",
+      "name": "Gmail personal",
+      "service": "Gmail",
+      "tags": ["email"],
+      "createdAt": "2026-08-16T01:35:56.264Z",
+      "updatedAt": "2026-08-16T01:35:56.264Z"
+    }
+  ],
+  "count": 1,
+  "timestamp": "2026-08-16T01:35:56.264Z"
+}
+```
+
+Otros tipos de ejemplo para crear:
+
+```json
+{
+  "type": "api_key",
+  "name": "Stripe live",
+  "service": "Stripe",
+  "payload": { "key": "sk_live_..." }
+}
+```
+
+```json
+{
+  "type": "token",
+  "name": "GitHub PAT",
+  "service": "GitHub",
+  "payload": { "token": "ghp_..." }
+}
+```
+
+```json
+{
+  "type": "note",
+  "name": "WiFi oficina",
+  "payload": { "text": "SSID: HQ / clave: …" }
+}
+```
+
+---
+
+### 4. Obtener metadatos por id
+
+**GET** `/api/secrets/:id`  
+**Auth:** requerida
+
+**Respuesta 200:** mismo objeto `secret` (sin payload).
+
+**Respuesta 404:**
+```json
+{
+  "error": "Secreto no encontrado",
+  "timestamp": "2026-08-16T01:35:56.264Z"
+}
+```
+
+---
+
+### 5. Revelar contraseña (POST)
+
+Desencripta el payload y lo devuelve. Es **POST** a propósito: el valor no queda en access logs de query string.
+
+**POST** `/api/secrets/:id/reveal`  
+**Auth:** requerida  
+Body: no hace falta.
+
+**Respuesta 200:**
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "type": "password",
+  "name": "Gmail personal",
+  "service": "Gmail",
+  "payload": {
+    "password": "miContraseña123",
+    "username": "usuario@example.com"
+  },
+  "timestamp": "2026-08-16T01:35:56.264Z"
+}
+```
+
+**404** si el id no existe. **401** sin API key.
+
+---
+
+### 6. Verificar una contraseña
+
+Compara un candidato contra el payload almacenado. **Solo aplica a `type=password`**.
+
+**POST** `/api/secrets/:id/verify`  
+**Auth:** requerida
+
+**Body:**
+```json
+{
+  "password": "miContraseña123",
+  "username": "usuario@example.com"
+}
+```
+
+`username` es opcional: si lo mandás, también se verifica.
+
+**Respuesta 200 (válida):**
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "isValid": true,
   "verified": {
     "password": true,
-    "username": true,
-    "service": true
+    "username": true
   },
-  "allValid": true,
-  "message": "Todos los valores coinciden",
-  "timestamp": "2026-01-16T13:35:56.264Z"
+  "message": "Valores válidos",
+  "timestamp": "2026-08-16T01:35:56.264Z"
 }
 ```
 
-## 📝 Ejemplos de Uso
+**Respuesta 200 (inválida):** `isValid: false`, `message`: `"Valores inválidos"`.
 
-### Ejemplo 1: Usando curl
+**Errores:**
 
-```bash
-# Almacenar una contraseña
-curl -X POST http://localhost:3000/api/passwords \
-  -H "Content-Type: application/json" \
-  -d '{
-    "password": "miContraseña123",
-    "username": "usuario@example.com",
-    "service": "Gmail"
-  }'
+| Status | Cuándo |
+|--------|--------|
+| 400 | El registro no es `password`, o falta `password` en el body |
+| 401 | Sin API key |
+| 404 | Id inexistente |
 
-# Obtener todas las contraseñas
-curl http://localhost:3000/api/passwords
+---
 
-# Obtener contraseñas desencriptadas
-curl "http://localhost:3000/api/passwords?decrypt=true"
+### 7. Eliminar contraseña
 
-# Verificar una contraseña
-curl -X POST http://localhost:3000/api/passwords/verify \
-  -H "Content-Type: application/json" \
-  -d '{
-    "password": "miContraseña123",
-    "index": 0
-  }'
+**DELETE** `/api/secrets/:id`  
+**Auth:** requerida
+
+**Respuesta 200:**
+```json
+{
+  "message": "Secreto eliminado",
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "timestamp": "2026-08-16T01:35:56.264Z"
+}
 ```
 
-### Ejemplo 2: Usando los scripts npm
+**404** si no existía.
+
+---
+
+### Códigos HTTP (resumen)
+
+| Código | Significado |
+|--------|-------------|
+| 200 | Listar, get, reveal, verify, delete |
+| 201 | Contraseña creada |
+| 400 | Validación (tipo, name, payload, verify sobre no-password) |
+| 401 | Falta o no coincide `API_KEY` |
+| 404 | Contraseña o ruta inexistente |
+
+## 🧪 Collection de Postman
+
+La collection **Crypto AES-256-GCM Vault** cubre el contrato completo: Health, Auth (401), Create de los 4 tipos, validaciones 400, listado sin plaintext, reveal, verify y delete.
+
+Archivo: `collections/bgvault.postman_collection.json`  
+El `_postman_id` se mantiene fijo para que reimportar **actualice** la collection y no abra otra.
+
+### Cómo ejecutarla
+
+1. `npm run setup-env` y `npm run server`
+2. En Postman: **Import** → `collections/bgvault.postman_collection.json` (si ya existe, **Replace**)
+3. Click en la collection → pestaña **Variables** → `apiKey` (**Current value**) = `bgvault-dev-api-key-local`
+4. Guardá (Ctrl+S)
+5. **Runner** → **Run collection** (en orden)
+
+La collection envía `X-API-Key: {{apiKey}}` en todo excepto Health y los casos 401 (a propósito, para afirmar el 401).
+
+Los tests comprueban status, que GET/list no filtren `payload` ni ciphertext, formato de cifrado cuando aplica, y que reveal/verify desencripten el valor esperado.
+
+Si el Runner dice **Environment: none**, está bien: la key vive en **variables de la collection**, no en un environment aparte.
+
+## 📝 Ejemplos de uso
+
+### Ejemplo 1: curl
 
 ```bash
-# Configurar el archivo .env
+export API_KEY="bgvault-dev-api-key-local"
+export BASE="http://localhost:3000"
+
+# Salud
+curl -s "$BASE/health"
+
+# Crear API key
+curl -s -X POST "$BASE/api/secrets" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{
+    "type": "api_key",
+    "name": "Stripe live",
+    "service": "Stripe",
+    "payload": { "key": "sk_live_demo" }
+  }'
+
+# Listar (sin plaintext)
+curl -s "$BASE/api/secrets" -H "X-API-Key: $API_KEY"
+
+# Filtrar
+curl -s "$BASE/api/secrets?type=password" -H "X-API-Key: $API_KEY"
+
+# Revelar (reemplazá el id)
+curl -s -X POST "$BASE/api/secrets/<id>/reveal" \
+  -H "X-API-Key: $API_KEY"
+
+# Verificar password
+curl -s -X POST "$BASE/api/secrets/<id>/verify" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{ "password": "miContraseña123" }'
+
+# Eliminar
+curl -s -X DELETE "$BASE/api/secrets/<id>" \
+  -H "X-API-Key: $API_KEY"
+```
+
+### Ejemplo 2: scripts npm
+
+```bash
 npm run setup-env
-
-# Enviar contraseña usando valores del .env
-npm run client:post
-
-# Obtener todas las contraseñas
-npm run client:get
-
-# Ver valores desencriptados del .env
-npm run decrypt-env
+npm run server          # en otra terminal
+npm run client:post     # crea un password de demo
+npm run client:get      # lista metadatos
+npm run decrypt-env     # solo si hay *_ENCRYPTED en .env
 ```
 
-## 📁 Estructura del Proyecto
+## 📁 Estructura del proyecto
 
 ```
-crypto/
+bgvault/
 ├── src/
+│   ├── config/
+│   │   └── env.js                   # Carga .env y valida ENCRYPTION_KEY / API_KEY
+│   ├── middleware/
+│   │   └── requireApiKey.js         # Auth X-API-Key / Bearer + timingSafeEqual
+│   ├── store/
+│   │   └── secretsStore.js          # Almacén in-memory (Map por UUID)
 │   ├── controllers/
-│   │   └── passwordController.js    # Lógica de negocio para contraseñas
+│   │   └── secretController.js      # Create, list, get, reveal, verify, delete
 │   ├── crypto/
-│   │   ├── lib.js                   # Módulo reutilizable de encriptación (AES-256-GCM)
-│   │   └── crypto-cli.js            # CLI wrapper para encriptación/desencriptación
+│   │   ├── lib.js                   # encrypt / decrypt AES-256-GCM + AAD
+│   │   └── crypto-cli.js            # CLI: cifrar / descifrar un valor
 │   ├── routes/
-│   │   └── passwordRoutes.js      # Definición de rutas de la API
-│   ├── server.js                    # Servidor Express principal
+│   │   └── secretRoutes.js          # /api/secrets
+│   ├── server.js                    # Express, headers, 404/JSON inválido
 │   └── setup/
-│       ├── setup-env.js             # Script para configurar .env
-│       └── decrypt-env.js           # Script para desencriptar .env
+│       ├── setup-env.js             # Genera o completa .env
+│       └── decrypt-env.js           # Muestra *_ENCRYPTED
+├── collections/
+│   └── bgvault.postman_collection.json
 ├── scripts/
 │   └── client/
-│       └── client.sh                # Script bash para cliente
+│       └── client.sh                # Cliente bash (post / get)
+├── .env.example
 ├── package.json
 └── README.md
 ```
 
-## 🔄 Reutilización del Módulo de Encriptación
+## 🔄 Reutilización del módulo de encriptación
 
-El módulo de encriptación ha sido diseñado para ser reutilizable en otros proyectos Node.js. La lógica de encriptación está separada en un módulo independiente que puedes copiar fácilmente.
+La lógica de cifrado está aislada en un módulo independiente, pensado para copiarse a otros servicios Node.
 
 ### Archivo a copiar
 
-Para reutilizar el módulo de encriptación en otro proyecto, solo necesitas copiar un archivo:
-
-- **`src/crypto/lib.js`** - Módulo reutilizable con las funciones `encrypt()` y `decrypt()`
+- **`src/crypto/lib.js`** — `encrypt(text, key, aad)` y `decrypt(blob, key, aad)`
 
 ### Dependencias
 
-**No requiere dependencias externas**. El módulo utiliza únicamente `node:crypto`, que es un módulo nativo de Node.js disponible en todas las versiones modernas.
+**Ninguna dependency de npm.** Solo `node:crypto`.
 
-### Instalación en otro proyecto
-
-1. **Copia el archivo** `src/crypto/lib.js` a tu otro proyecto (puedes colocarlo en cualquier ubicación, por ejemplo: `src/utils/crypto-lib.js` o `lib/encrypt.js`)
-
-2. **Importa el módulo** en tu código:
-
-```javascript
-const { encrypt, decrypt } = require('./src/crypto/lib'); // Ajusta la ruta según donde lo coloques
-```
-
-### Ejemplo de uso
+### Uso
 
 ```javascript
 const { encrypt, decrypt } = require('./src/crypto/lib');
 
-// Encriptar un texto
-const textoPlano = 'mi secreto';
-const textoCifrado = encrypt(textoPlano);
-console.log('Texto cifrado:', textoCifrado);
+const clave = process.env.ENCRYPTION_KEY;
+const aad = 'secret:<id>:password';
 
-// Desencriptar
-const textoDesencriptado = decrypt(textoCifrado);
-console.log('Texto desencriptado:', textoDesencriptado);
-
-// Usar una clave personalizada
-const clavePersonalizada = 'mi-clave-super-segura-de-32-caracteres-min';
-const cifradoConClave = encrypt(textoPlano, clavePersonalizada);
-const desencriptadoConClave = decrypt(cifradoConClave, clavePersonalizada);
+const cifrado = encrypt('mi contraseña', clave, aad);
+const plano = decrypt(cifrado, clave, aad);
 ```
 
-### Configuración de clave
+- Si no pasás `key`, usa `process.env.ENCRYPTION_KEY`.
+- `aad` es opcional, pero **el mismo valor** tiene que usarse al cifrar y al descifrar.
+- El vault ata AAD a `secret:<uuid>:<type>`.
 
-El módulo utiliza una clave por defecto si no se especifica una. Para usar una clave personalizada:
+### CLI
 
-1. **Opción 1**: Pasar la clave como segundo parámetro:
-   ```javascript
-   encrypt(texto, 'mi-clave-personalizada');
-   decrypt(textoCifrado, 'mi-clave-personalizada');
-   ```
+```bash
+node src/crypto/crypto-cli.js "texto a cifrar"
+node src/crypto/crypto-cli.js --decrypt "salt:iv:tag:encrypted"
+```
 
-2. **Opción 2**: Configurar la variable de entorno `ENCRYPTION_KEY`:
-   ```bash
-   export ENCRYPTION_KEY="tu-clave-segura-de-32-caracteres-minimo"
-   ```
-   El módulo la detectará automáticamente.
+Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 
 ### Características del módulo
 
-- ✅ **AES-256-GCM**: Algoritmo de encriptación simétrica con autenticación
-- ✅ **Derivación de clave**: PBKDF2 con 100,000 iteraciones
-- ✅ **Salt único**: Cada encriptación genera un salt aleatorio de 64 bytes
-- ✅ **IV único**: Cada encriptación genera un IV aleatorio de 16 bytes
-- ✅ **Sin dependencias**: Solo usa módulos nativos de Node.js
-- ✅ **Formato estándar**: Los datos encriptados usan formato `salt:iv:tag:encrypted` (todo en hex)
-
-### Notas importantes
-
-- El formato de datos encriptados es compatible entre proyectos que usen este módulo
-- Asegúrate de usar la misma clave para encriptar y desencriptar
-- En producción, siempre usa una clave segura de al menos 32 caracteres
-- El módulo es completamente independiente y no requiere ninguna otra parte del proyecto
+- ✅ **AES-256-GCM** con tag de autenticación
+- ✅ **PBKDF2** 100.000 iteraciones, SHA-256, salida de 32 bytes
+- ✅ **Salt** aleatorio de 64 bytes por mensaje
+- ✅ **IV** aleatorio de 12 bytes (NIST); `decrypt` acepta IV legado de 16 bytes
+- ✅ **AAD** opcional vía `cipher.setAAD` / `decipher.setAAD`
+- ✅ **Formato** `salt:iv:tag:encrypted` (todo hex)
+- ✅ **Sin clave default**: falla si `ENCRYPTION_KEY` no está o es la clave insegura histórica
 
 ## 🔒 Seguridad
 
 ### Encriptación
 
-- **Algoritmo**: AES-256-GCM (Advanced Encryption Standard con Galois/Counter Mode)
-- **Derivación de clave**: PBKDF2 con 100,000 iteraciones y SHA-256
-- **Salt**: 64 bytes aleatorios por cada encriptación
-- **IV**: 16 bytes aleatorios por cada encriptación
-- **Autenticación**: GCM proporciona autenticación integrada
+| Pieza | Detalle |
+|-------|---------|
+| Algoritmo | AES-256-GCM |
+| Derivación | PBKDF2, 100.000 iteraciones, SHA-256 |
+| Salt | 64 bytes aleatorios / mensaje |
+| IV | 12 bytes aleatorios / mensaje |
+| AAD | `secret:<id>:<type>` en el vault |
+| Autenticación | Tag GCM (integridad + autenticidad) |
 
-### Formato de datos encriptados
+### Qué no se filtra
 
-Los datos encriptados se almacenan en formato:
-```
-salt:iv:tag:encrypted
-```
+- GET y list **no** devuelven ciphertext ni plaintext
+- Reveal es POST: la contraseña no queda en la URL
+- No hay `?decrypt=true`
+- `X-Powered-By` deshabilitado; `X-Content-Type-Options: nosniff`; `X-Frame-Options: DENY`
+- Body JSON limitado a 32 KB
 
-Donde todos los componentes están en hexadecimal.
+### Recomendaciones
 
-### Recomendaciones de seguridad
-
-1. **Clave de encriptación**: Usa una clave segura de al menos 32 caracteres en producción
-2. **Variable de entorno**: Configura `ENCRYPTION_KEY` como variable de entorno, nunca la hardcodees
-3. **Archivo .env**: No subas el archivo `.env` al repositorio (debe estar en `.gitignore`)
-4. **HTTPS**: En producción, usa HTTPS para todas las comunicaciones
-5. **Almacenamiento**: Los datos se almacenan en memoria, se pierden al reiniciar el servidor
+1. **Claves**: `ENCRYPTION_KEY` ≥ 32 caracteres; nunca en el código
+2. **`.env`**: fuera de git
+3. **HTTPS** en cualquier red que no sea loopback
+4. **API_KEY** distinta por entorno; rotarla si se filtra
+5. **Producción**: no uses `bgvault-dev-api-key-local`
 
 ## ⚠️ Limitaciones
 
-- **Almacenamiento en memoria**: Los datos se pierden al reiniciar el servidor
-- **Sin persistencia**: No hay base de datos, todo se almacena en memoria
-- **Sin autenticación**: La API no tiene autenticación/autorización
-- **Desarrollo**: Este proyecto está diseñado para desarrollo/ejemplos, no para producción directa
+- **Memoria**: las contraseñas se pierden al reiniciar el proceso
+- **Un solo `API_KEY`**: no hay usuarios, roles ni tenants todavía
+- **Sin rotación / versionado** de contraseñas ni envelope encryption con KMS
+- **Sin persistencia** (SQLite/Postgres es la siguiente fase)
+- Pensado como vault de desarrollo y base de un producto, no como caja fuerte de producción cerrada
 
 ## 🛠️ Desarrollo
 
 ### Requisitos
 
-- Node.js 14+ (recomendado 18+)
-- npm o yarn
-- Bash (para scripts de cliente en Linux/Mac/Git Bash)
+- Node.js 18+ (recomendado)
+- npm
+- Postman (para la collection) o Bash/Git Bash (para `client.sh`)
 
 ### Módulos nativos utilizados
 
-- `node:crypto`: Para todas las operaciones criptográficas
-- `node:fs`: Para lectura/escritura de archivos
-- `node:path`: Para manejo de rutas
-- `node:readline`: Para entrada interactiva
+- `node:crypto` — cifrado, UUID, `timingSafeEqual`, generación de claves
+- `node:fs` / `node:path` — `.env` y setup
+- `node:readline` — reservado para flujos interactivos de setup
 
 ## 📄 Licencia
 
@@ -474,9 +625,8 @@ ISC
 
 ## 👤 Autor
 
-Proyecto desarrollado para gestión segura de contraseñas.
+Proyecto BGVault: gestión de contraseñas con criptografía nativa de Node.js.
 
 ---
 
-**Nota**: Este proyecto utiliza únicamente módulos nativos de Node.js para criptografía, sin dependencias externas como `bcrypt` o `crypto-js`.
-
+**Nota**: este proyecto no usa librerías externas de criptografía (`bcrypt`, `crypto-js`, etc.). Todo el cifrado pasa por `node:crypto`.

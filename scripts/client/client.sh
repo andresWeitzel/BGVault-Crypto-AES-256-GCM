@@ -263,42 +263,30 @@ load_env_file() {
 # Cargar configuración desde archivo .env
 if [ -f "$CONFIG_FILE" ]; then
     load_env_file "$CONFIG_FILE"
-    
-    # Verificar si las variables necesarias están definidas
-    if [ -z "$PASSWORD" ] && [ -z "$PASSWORD_ENCRYPTED" ]; then
-        echo -e "${YELLOW}⚠ Advertencia: No se encontraron valores de contraseña en .env${NC}" >&2
-        create_env_file
-        if [ $? -eq 0 ]; then
-            load_env_file "$CONFIG_FILE"
-        else
-            echo -e "${YELLOW}⚠ Error al crear el archivo .env${NC}" >&2
-            exit 1
-        fi
-    fi
 else
-    echo -e "${YELLOW}⚠ Advertencia: No se encontró el archivo de configuración: ${CONFIG_FILE}${NC}" >&2
-    create_env_file
-    if [ $? -eq 0 ]; then
-        load_env_file "$CONFIG_FILE"
-    else
-        echo -e "${YELLOW}⚠ Error al crear el archivo .env${NC}" >&2
-        exit 1
-    fi
-fi
-
-# Verificar nuevamente después de cargar
-if [ -z "$PASSWORD" ] && [ -z "$PASSWORD_ENCRYPTED" ]; then
-    echo -e "${YELLOW}⚠ Error: No se pudieron cargar los valores de configuración${NC}" >&2
-    echo -e "${BLUE}   Intenta ejecutar: npm run setup-env${NC}" >&2
+    echo -e "${YELLOW}⚠ No se encontró .env${NC}" >&2
+    echo -e "${BLUE}   Ejecuta: npm run setup-env${NC}" >&2
     exit 1
 fi
 
+if [ -z "$API_KEY" ]; then
+    echo -e "${YELLOW}⚠ Falta API_KEY en .env${NC}" >&2
+    echo -e "${BLUE}   Ejecuta: npm run setup-env${NC}" >&2
+    exit 1
+fi
+
+PASSWORD="${PASSWORD:-demo-password}"
+USERNAME="${USERNAME:-demo-user}"
+SERVICE="${SERVICE:-demo-service}"
+
 # Función para hacer GET request
 get_passwords() {
-    echo -e "${BLUE}Obteniendo contraseñas de: ${SERVER_URL}/api/passwords${NC}"
+    echo -e "${BLUE}Listando secretos: ${SERVER_URL}/api/secrets${NC}"
     echo ""
     
-    response=$(curl -s -w "\n%{http_code}" "${SERVER_URL}/api/passwords")
+    response=$(curl -s -w "\n%{http_code}" \
+        -H "X-API-Key: ${API_KEY}" \
+        "${SERVER_URL}/api/secrets")
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
     
@@ -324,16 +312,17 @@ post_password() {
         exit 1
     fi
     
-    data="{\"password\":\"$password\",\"username\":\"$username\",\"service\":\"$service\"}"
+    data="{\"type\":\"password\",\"name\":\"${service}\",\"service\":\"${service}\",\"payload\":{\"password\":\"${password}\",\"username\":\"${username}\"}}"
     
-    echo -e "${BLUE}Enviando contraseña a: ${SERVER_URL}/api/passwords${NC}"
+    echo -e "${BLUE}Creando secreto en: ${SERVER_URL}/api/secrets${NC}"
     echo ""
     
     response=$(curl -s -w "\n%{http_code}" \
         -X POST \
         -H "Content-Type: application/json" \
+        -H "X-API-Key: ${API_KEY}" \
         -d "$data" \
-        "${SERVER_URL}/api/passwords")
+        "${SERVER_URL}/api/secrets")
     
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
@@ -359,17 +348,14 @@ case "$1" in
         ;;
     *)
         echo -e "${YELLOW}Uso:${NC}"
-        echo "  bash scripts/client/client.sh post  - Enviar contraseña (usa las variables del script)"
-        echo "  bash scripts/client/client.sh get   - Obtener contraseñas"
+        echo "  bash scripts/client/client.sh post  - Crear un secreto tipo password"
+        echo "  bash scripts/client/client.sh get   - Listar secretos (sin payload)"
         echo ""
         echo -e "${BLUE}Desde npm:${NC}"
-        echo "  npm run client:post  - Enviar contraseña"
-        echo "  npm run client:get   - Obtener contraseñas"
+        echo "  npm run client:post"
+        echo "  npm run client:get"
         echo ""
-        echo -e "${BLUE}Nota:${NC} El archivo .env debe contener valores encriptados:"
-        echo "      PASSWORD_ENCRYPTED, USERNAME_ENCRYPTED, SERVICE_ENCRYPTED"
-        echo "      Para configurar valores: npm run setup-env"
-        echo "      Para configurar: npm run setup-env"
+        echo "Requiere .env con API_KEY (npm run setup-env)"
         exit 1
         ;;
 esac
