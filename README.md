@@ -69,7 +69,7 @@ npm run server
 | `RATE_LIMIT_AUTH_WINDOW_MS` | Ventana de auth en ms (por defecto `600000` = 10 min) |
 | `RATE_LIMIT_REVEAL_MAX` | Tope de reveal/verify por usuario (por defecto `120`) |
 | `RATE_LIMIT_REVEAL_WINDOW_MS` | Ventana de reveal/verify en ms (por defecto `60000` = 1 min) |
-| `RATE_LIMIT_IP_MAX` | Tope **global** de `/api/*` por IP; vacío = desactivado. Se setea en Render / Railway sin cambiar código |
+| `RATE_LIMIT_IP_MAX` | Tope **global** de `/api/*` por IP; vacío = desactivado. Se setea en Render sin cambiar código |
 | `RATE_LIMIT_IP_WINDOW_MS` | Ventana del tope global (por defecto `600000` = 10 min) |
 
 En la collection de Postman el usuario de demo es `demo@bgvault.local` / `bgvault-dev-password` (se crea en el Runner). En producción usá valores distintos y largos.
@@ -220,10 +220,6 @@ curl -s -X POST "https://<servicio>.onrender.com/api/auth/register" \
 Postman: collection `collections/bgvault.postman_collection.json` → variable `baseUrl` = `https://<servicio>.onrender.com` (timeout ≥ 90 s en el primer Health). El Runner completo suele superar 40 hits: o subís `RATE_LIMIT_IP_MAX` o corrés la collection en local.
 
 Si alguien se pasa del tope por IP: **429** `RATE_LIMITED` (`Demasiadas solicitudes para esta IP`). Otra IP no se bloquea.
-
-### Railway (opcional)
-
-Pago / trial. `railway.toml` + volume `/data` y `SQLITE_PATH=/data/bgvault.sqlite` si querés que la base sobreviva redeploys. Spending cap en Usage.
 
 ## 🔑 Autenticación
 
@@ -1257,7 +1253,6 @@ bgvault/
 │       └── client.sh                # Cliente bash (post / get)
 ├── .env.example
 ├── .nvmrc
-├── railway.toml
 ├── render.yaml
 ├── package.json
 └── README.md
