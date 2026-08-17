@@ -4,6 +4,7 @@
   "description": "BGVault — vault de credenciales con AES-256-GCM",
   "main": "src/server.js",
   "scripts": {
+    "start": "node src/server.js",
     "server": "node src/server.js",
     "client:post": "bash scripts/client/client.sh post",
     "client:get": "bash scripts/client/client.sh get",

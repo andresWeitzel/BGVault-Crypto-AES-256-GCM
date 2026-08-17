@@ -220,3 +220,39 @@ test('maxReveals agotado responde 410 REVEAL_LIMIT', async () => {
   assert.equal(second.json.error.code, 'REVEAL_LIMIT');
   assert.equal(second.json.payload, undefined);
 });
+
+test('RATE_LIMIT_IP_MAX responde 429 por IP y no comparte bucket', async () => {
+  process.env.RATE_LIMIT_IP_MAX = '2';
+  const limited = createApp();
+  const extra = await new Promise((resolve) => {
+    const srv = limited.listen(0, '127.0.0.1', () => resolve(srv));
+  });
+  const extraBase = `http://127.0.0.1:${extra.address().port}`;
+
+  async function hit(ip) {
+    const res = await fetch(`${extraBase}/api/credentials`, {
+      headers: { 'X-Real-IP': ip },
+    });
+    return { status: res.status, json: await res.json() };
+  }
+
+  try {
+    const first = await hit('203.0.113.10');
+    const second = await hit('203.0.113.10');
+    const third = await hit('203.0.113.10');
+    const other = await hit('203.0.113.20');
+    const health = await fetch(`${extraBase}/health`);
+
+    assert.equal(first.status, 401);
+    assert.equal(second.status, 401);
+    assert.equal(third.status, 429);
+    assert.equal(third.json.error.code, 'RATE_LIMITED');
+    assert.equal(other.status, 401);
+    assert.equal(health.status, 200);
+  } finally {
+    delete process.env.RATE_LIMIT_IP_MAX;
+    await new Promise((resolve, reject) => {
+      extra.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+});
