@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "c8d5f0b2-6e3a-4d9c-8b42-1f7e3c9d2a85",
     "name": "Crypto AES-256-GCM Vault",
-    "description": "Crypto AES-256-GCM Vault — passwords, API keys, tokens y notas.\n\nAuth de la collection: `Authorization: Bearer {{accessToken}}`.\n\n1. `npm run setup-env` y `npm run server`\n2. Runner → **Run collection** (en orden). El folder Auth registra/loguea y guarda `accessToken`.\n3. Health y register/login son públicos. Los 401 van sin token a propósito.",
+    "description": "Crypto AES-256-GCM Vault — passwords, API keys, tokens y notas.\n\nAuth de la collection: `Authorization: Bearer {{accessToken}}`.\n\n1. `npm run setup-env` y `npm run server`\n2. Runner → **Run collection** (en orden). El folder Auth registra/loguea y guarda `accessToken`.\n3. Health y register/login son públicos. Los 401 van sin token a propósito.\n4. Cubre PATCH de metadatos, paginación list/audit, 410 TTL y envelope de error `{ code, message }`.\nEl re-wrap de DEKs es CLI (`npm run rewrap-keys`), no un request HTTP.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -74,6 +74,10 @@
     {
       "key": "credentialIdOnetime",
       "value": ""
+    },
+    {
+      "key": "credentialIdTtl",
+      "value": ""
     }
   ],
   "item": [
@@ -107,6 +111,110 @@
                   "    pm.expect(json.crypto).to.eql('envelope');",
                   "    pm.expect(json.requestId).to.be.a('string');",
                   "    pm.expect(pm.response.headers.get('X-Request-Id')).to.eql(json.requestId);",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Health — echo X-Request-Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "postman-health-0001"
+              }
+            ],
+            "url": "{{baseUrl}}/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reutiliza X-Request-Id', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.requestId).to.eql('postman-health-0001');",
+                  "    pm.expect(pm.response.headers.get('X-Request-Id')).to.eql('postman-health-0001');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Contrato",
+      "item": [
+        {
+          "name": "Error 404 — ruta inexistente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/no-existe",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 ROUTE_NOT_FOUND', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"ROUTE_NOT_FOUND\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — JSON inválido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials",
+            "body": {
+              "mode": "raw",
+              "raw": "{",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 JSON_INVALID', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"JSON_INVALID\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
                   "    pm.expect(json).to.have.property('timestamp');",
                   "});"
                 ]
@@ -267,6 +375,49 @@
           ]
         },
         {
+          "name": "Error 409 — email ya registrado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/register",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{authEmail}}\",\n  \"password\": \"{{authPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409 EMAIL_TAKEN', function () {",
+                  "    pm.response.to.have.status(409);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"EMAIL_TAKEN\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "    pm.expect(json.error.message).to.eql('Email ya registrado');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Me",
           "request": {
             "method": "GET",
@@ -372,6 +523,48 @@
               }
             }
           ]
+        },
+        {
+          "name": "Error 400 — email inválido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/register",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"no-es-un-email\",\n  \"password\": \"bgvault-dev-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 VALIDATION', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"VALIDATION\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -455,6 +648,45 @@
                   "    const err = pm.response.json().error;",
                   "    pm.expect(err.code).to.eql('VALIDATION');",
                   "    pm.expect(err.message).to.include('kind debe ser uno de');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generar api_key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/generate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"api_key\",\n  \"length\": 32\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('API key aleatoria', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.kind).to.eql('api_key');",
+                  "    pm.expect(json.value).to.have.lengthOf(32);",
+                  "    pm.expect(json).to.have.property('requestId');",
                   "});"
                 ]
               }
@@ -705,6 +937,45 @@
               }
             }
           ]
+        },
+        {
+          "name": "Error 400 — payload incompleto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"password\",\n  \"name\": \"Sin password\",\n  \"payload\": {\n    \"username\": \"x\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 VALIDATION', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"VALIDATION\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -728,6 +999,8 @@
                   "pm.test('Status 200 sin plaintext', function () {",
                   "    pm.response.to.have.status(200);",
                   "    pm.expect(json.count).to.be.at.least(4);",
+                  "    pm.expect(json.limit).to.eql(50);",
+                  "    pm.expect(json.offset).to.eql(0);",
                   "    json.credentials.forEach(function (item) {",
                   "        pm.expect(item).to.have.property('id');",
                   "        pm.expect(item).to.not.have.property('payload');",
@@ -735,6 +1008,32 @@
                   "        pm.expect(item).to.not.have.property('wrappedDek');",
                   "        pm.expect(item).to.not.have.property('password');",
                   "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar paginado limit=2",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials?limit=2&offset=0"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Página de 2', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.limit).to.eql(2);",
+                  "    pm.expect(json.offset).to.eql(0);",
+                  "    pm.expect(json.count).to.eql(json.credentials.length);",
+                  "    pm.expect(json.credentials.length).to.be.at.most(2);",
                   "});"
                 ]
               }
@@ -808,6 +1107,535 @@
                   "    const err = pm.response.json().error;",
                   "    pm.expect(err.code).to.eql('CREDENTIAL_NOT_FOUND');",
                   "    pm.expect(err.message).to.eql('Credencial no encontrada');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — limit inválido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials?limit=0"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('VALIDATION');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar offset=2",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials?limit=2&offset=2"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Segunda página', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.limit).to.eql(2);",
+                  "    pm.expect(json.offset).to.eql(2);",
+                  "    pm.expect(json.count).to.eql(json.credentials.length);",
+                  "    pm.expect(json.credentials.length).to.be.at.most(2);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — offset negativo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials?offset=-1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 VALIDATION', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"VALIDATION\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — limit 201",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials?limit=201"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 VALIDATION', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"VALIDATION\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Patch",
+      "item": [
+        {
+          "name": "Editar name y tags",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gmail trabajo\",\n  \"service\": \"Google Workspace\",\n  \"tags\": [\n    \"email\",\n    \"trabajo\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Metadatos actualizados sin payload', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.credential.name).to.eql('Gmail trabajo');",
+                  "    pm.expect(json.credential.service).to.eql('Google Workspace');",
+                  "    pm.expect(json.credential.tags).to.eql(['email', 'trabajo']);",
+                  "    pm.expect(json.credential.currentVersion).to.eql(1);",
+                  "    pm.expect(json.credential).to.not.have.property('payload');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET confirma PATCH",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('GET refleja metadatos', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.credential.name).to.eql('Gmail trabajo');",
+                  "    pm.expect(json.credential.service).to.eql('Google Workspace');",
+                  "    pm.expect(json.credential.tags).to.eql(['email', 'trabajo']);",
+                  "    pm.expect(json.credential.currentVersion).to.eql(1);",
+                  "    pm.expect(json.credential).to.not.have.property('payload');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar por service tras PATCH",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials?service=Google%20Workspace"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Match de service', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.credentials.length).to.be.at.least(1);",
+                  "    json.credentials.forEach(function (item) {",
+                  "        pm.expect(item.service).to.eql('Google Workspace');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revelar tras PATCH — payload intacto",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/reveal"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('PATCH no tocó el secreto', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.credential.name).to.eql('Gmail trabajo');",
+                  "    pm.expect(json.credential.currentVersion).to.eql(1);",
+                  "    pm.expect(json.payload.password).to.eql(pm.collectionVariables.get('password'));",
+                  "    pm.expect(json.payload.username).to.eql(pm.collectionVariables.get('username'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH limpia service",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"service\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('service null', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.credential.service).to.eql(null);",
+                  "    pm.expect(json.credential.name).to.eql('Gmail trabajo');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH tags vacíos",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tags\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('tags vacíos', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.credential.tags).to.eql([]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — body vacío",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('VALIDATION');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — payload no permitido",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"x\",\n  \"payload\": {\n    \"password\": \"no\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('VALIDATION');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — name vacío",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"   \"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 VALIDATION', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"VALIDATION\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — tags no array",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tags\": \"email\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 VALIDATION', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"VALIDATION\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — type no permitido",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"note\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 VALIDATION', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"VALIDATION\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 404 — id inexistente",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials/00000000-0000-4000-8000-000000000000",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"fantasma\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 CREDENTIAL_NOT_FOUND', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"CREDENTIAL_NOT_FOUND\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
                   "});"
                 ]
               }
@@ -905,6 +1733,238 @@
               }
             }
           ]
+        },
+        {
+          "name": "PATCH ajeno — 404",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{otherAccessToken}}"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"hack\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No filtra existencia ajena', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    const err = pm.response.json().error;",
+                  "    pm.expect(err.code).to.eql('CREDENTIAL_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar ajeno — no ve credenciales",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{otherAccessToken}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('List vacío de ajenos', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const mine = pm.collectionVariables.get('credentialIdPassword');",
+                  "    json.credentials.forEach(function (item) {",
+                  "        pm.expect(item.id).to.not.eql(mine);",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reveal ajeno — 404",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/reveal",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{otherAccessToken}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 CREDENTIAL_NOT_FOUND', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"CREDENTIAL_NOT_FOUND\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Versions ajeno — 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/versions",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{otherAccessToken}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 CREDENTIAL_NOT_FOUND', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"CREDENTIAL_NOT_FOUND\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rotate ajeno — 404",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/rotate",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{otherAccessToken}}"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payload\": {\n    \"password\": \"no-deberia-rotar\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 CREDENTIAL_NOT_FOUND', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"CREDENTIAL_NOT_FOUND\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Audit ajeno — no ve eventos de otro",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/audit",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{otherAccessToken}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Audit scoped', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const mine = pm.collectionVariables.get('credentialIdPassword');",
+                  "    json.events.forEach(function (item) {",
+                  "        pm.expect(item.credentialId).to.not.eql(mine);",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -951,6 +2011,89 @@
                   "pm.test('API key revelada', function () {",
                   "    pm.response.to.have.status(200);",
                   "    pm.expect(pm.response.json().payload.key).to.eql('sk_live_demo_123');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revelar token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdToken}}/reveal"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Token revelado', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().payload.token).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revelar note",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdNote}}/reveal"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Note revelada', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().payload.text).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — version inválida",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}/reveal",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 VALIDATION', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"VALIDATION\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
                   "});"
                 ]
               }
@@ -1153,6 +2296,98 @@
               }
             }
           ]
+        },
+        {
+          "name": "Crear TTL corto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"note\",\n  \"name\": \"TTL corto\",\n  \"payload\": {\n    \"text\": \"vence-pronto\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expiresAt = new Date(Date.now() + 2500).toISOString();",
+                  "pm.request.body.raw = JSON.stringify({",
+                  "    type: 'note',",
+                  "    name: 'TTL corto',",
+                  "    expiresAt: expiresAt,",
+                  "    payload: { text: 'vence-pronto' }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('TTL creado', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(json.credential.expiresAt).to.be.a('string');",
+                  "    pm.expect(json.credential.expired).to.eql(false);",
+                  "});",
+                  "if (json.credential && json.credential.id) {",
+                  "    pm.collectionVariables.set('credentialIdTtl', json.credential.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revelar TTL vencido — 410",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdTtl}}/reveal"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const start = Date.now();",
+                  "while (Date.now() - start < 3000) {}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 410 CREDENTIAL_EXPIRED', function () {",
+                  "    pm.response.to.have.status(410);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"CREDENTIAL_EXPIRED\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
+                  "    pm.expect(json).to.not.have.property('payload');",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -1265,6 +2500,45 @@
                   "    const err = pm.response.json().error;",
                   "    pm.expect(err.code).to.eql('VALIDATION');",
                   "    pm.expect(err.message).to.eql('verify solo aplica a credenciales de tipo password');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 404 — id inexistente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials/00000000-0000-4000-8000-000000000000/verify",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 CREDENTIAL_NOT_FOUND', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"CREDENTIAL_NOT_FOUND\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
                   "});"
                 ]
               }
@@ -1443,6 +2717,45 @@
               }
             }
           ]
+        },
+        {
+          "name": "PATCH tras rotar — versión no cambia",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/credentials/{{credentialIdPassword}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gmail rotado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Metadato sin nueva versión', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.credential.name).to.eql('Gmail rotado');",
+                  "    pm.expect(json.credential.currentVersion).to.eql(2);",
+                  "    pm.expect(json.credential).to.not.have.property('payload');",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -1466,6 +2779,8 @@
                   "pm.test('Hay eventos y no hay ciphertext', function () {",
                   "    pm.response.to.have.status(200);",
                   "    pm.expect(json.count).to.be.at.least(1);",
+                  "    pm.expect(json.limit).to.eql(50);",
+                  "    pm.expect(json.offset).to.eql(0);",
                   "    json.events.forEach(function (item) {",
                   "        pm.expect(item).to.have.property('action');",
                   "        pm.expect(item).to.have.property('ok');",
@@ -1497,6 +2812,84 @@
                   "    json.events.forEach(function (item) {",
                   "        pm.expect(item.action).to.eql('rotate');",
                   "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar auditoría por action=patch",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/audit?action=patch"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Solo patch', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.events.length).to.be.at.least(1);",
+                  "    json.events.forEach(function (item) {",
+                  "        pm.expect(item.action).to.eql('patch');",
+                  "        pm.expect(item).to.not.have.property('payload');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auditoría paginada limit=2",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/audit?limit=2&offset=0"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Página audit', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.limit).to.eql(2);",
+                  "    pm.expect(json.offset).to.eql(0);",
+                  "    pm.expect(json.count).to.eql(json.events.length);",
+                  "    pm.expect(json.events.length).to.be.at.most(2);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 400 — audit limit inválido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/audit?limit=0"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 VALIDATION', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"VALIDATION\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
                   "});"
                 ]
               }
@@ -1545,6 +2938,31 @@
                 "exec": [
                   "pm.test('Status 404', function () {",
                   "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error 404 — delete inexistente",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/credentials/00000000-0000-4000-8000-000000000000"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 CREDENTIAL_NOT_FOUND', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.error.code).to.eql(\"CREDENTIAL_NOT_FOUND\");",
+                  "    pm.expect(json.requestId).to.be.a('string');",
+                  "    pm.expect(json).to.have.property('timestamp');",
                   "});"
                 ]
               }

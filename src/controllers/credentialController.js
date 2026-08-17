@@ -3,6 +3,7 @@ const envelope = require('../crypto/envelope');
 const store = require('../store/credentialsStore');
 const auditStore = require('../store/auditStore');
 const { CODES, sendOk, sendError, sendValidation, sendInternal } = require('../http/respond');
+const { parsePaging } = require('../http/paging');
 
 const CREDENTIAL_TYPES = ['password', 'api_key', 'token', 'note'];
 const MAX_REVEALS = 10000;
@@ -256,10 +257,25 @@ function listCredentials(req, res) {
     return sendValidation(res, `type debe ser uno de: ${CREDENTIAL_TYPES.join(', ')}`);
   }
 
-  const credentials = store.list({ userId: ownerId(req), type, service }).map(toPublic);
+  const paging = parsePaging(req.query);
+  if (paging.error) {
+    return sendValidation(res, paging.error);
+  }
+
+  const credentials = store
+    .list({
+      userId: ownerId(req),
+      type,
+      service,
+      limit: paging.limit,
+      offset: paging.offset,
+    })
+    .map(toPublic);
   return sendOk(res, 200, {
     credentials,
     count: credentials.length,
+    limit: paging.limit,
+    offset: paging.offset,
   });
 }
 
@@ -284,6 +300,80 @@ function getCredential(req, res) {
     ok: true,
   });
   return sendOk(res, 200, {
+    credential: toPublic(credential),
+  });
+}
+
+function patchCredential(req, res) {
+  const body = req.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return sendValidation(res, 'body debe ser un objeto');
+  }
+
+  const allowed = new Set(['name', 'service', 'tags']);
+  const keys = Object.keys(body);
+  if (!keys.length) {
+    return sendValidation(res, 'PATCH requiere name, service o tags');
+  }
+  const extra = keys.filter((key) => !allowed.has(key));
+  if (extra.length) {
+    return sendValidation(res, 'PATCH solo admite name, service y tags');
+  }
+
+  let name;
+  let service;
+  let tags;
+
+  if (body.name !== undefined) {
+    if (!body.name || typeof body.name !== 'string' || !body.name.trim()) {
+      return sendValidation(res, 'name es requerido');
+    }
+    name = body.name.trim();
+  }
+
+  if (body.service !== undefined) {
+    if (body.service !== null && typeof body.service !== 'string') {
+      return sendValidation(res, 'service debe ser string o null');
+    }
+    service = body.service && String(body.service).trim() ? String(body.service).trim() : null;
+  }
+
+  if (body.tags !== undefined) {
+    const normalizedTags = normalizeTags(body.tags);
+    if (normalizedTags === null) {
+      return sendValidation(res, 'tags debe ser un array de strings');
+    }
+    tags = normalizedTags;
+  }
+
+  const timestamp = now();
+  const credential = store.updateMetadata(req.params.id, ownerId(req), {
+    name,
+    service,
+    tags,
+    timestamp,
+  });
+  if (!credential) {
+    audit({
+      action: 'patch',
+      userId: ownerId(req),
+      credentialId: req.params.id,
+      ok: false,
+      detail: { reason: 'not_found' },
+    });
+    return sendError(res, 404, CODES.CREDENTIAL_NOT_FOUND, 'Credencial no encontrada');
+  }
+
+  audit({
+    action: 'patch',
+    userId: ownerId(req),
+    credentialId: credential.id,
+    version: credential.currentVersion,
+    ok: true,
+    detail: { fields: keys },
+  });
+  return sendOk(res, 200, {
+    message: 'Metadatos actualizados',
     credential: toPublic(credential),
   });
 }
@@ -496,6 +586,7 @@ module.exports = {
   createCredential,
   listCredentials,
   getCredential,
+  patchCredential,
   listVersions,
   revealCredential,
   verifyCredential,

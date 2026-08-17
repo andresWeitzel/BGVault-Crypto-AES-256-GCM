@@ -55,6 +55,17 @@ function validateEnvConfig() {
     errors.push(`JWT_SECRET debe tener al menos ${MIN_JWT_SECRET_LENGTH} caracteres`);
   }
 
+  const encryptionKeyNext = process.env.ENCRYPTION_KEY_NEXT;
+  if (encryptionKeyNext) {
+    if (encryptionKeyNext === INSECURE_DEFAULT) {
+      errors.push('ENCRYPTION_KEY_NEXT no puede ser la clave por defecto insegura');
+    } else if (encryptionKeyNext.length < MIN_KEY_LENGTH) {
+      errors.push(`ENCRYPTION_KEY_NEXT debe tener al menos ${MIN_KEY_LENGTH} caracteres`);
+    } else if (encryptionKey === encryptionKeyNext) {
+      errors.push('ENCRYPTION_KEY_NEXT debe ser distinta de ENCRYPTION_KEY');
+    }
+  }
+
   if (errors.length) {
     console.error('Configuración inválida:');
     for (const error of errors) {

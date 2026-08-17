@@ -111,7 +111,7 @@ function findByIdAndVersion(id, version, userId) {
   return mapCredential(row);
 }
 
-function list({ userId, type, service } = {}) {
+function list({ userId, type, service, limit = 50, offset = 0 } = {}) {
   let sql = `
     SELECT c.id, c.user_id, c.type, c.name, c.service, c.tags, c.current_version,
            c.created_at, c.updated_at, v.version, v.expires_at, v.max_reveals, v.reveal_count
@@ -129,12 +129,86 @@ function list({ userId, type, service } = {}) {
     sql += ' AND c.service = ?';
     params.push(service);
   }
-  sql += ' ORDER BY c.created_at DESC';
+  sql += ' ORDER BY c.created_at DESC LIMIT ? OFFSET ?';
+  params.push(limit, offset);
 
   return getDb()
     .prepare(sql)
     .all(...params)
     .map((row) => mapCredential(row));
+}
+
+function updateMetadata(id, userId, { name, service, tags, timestamp }) {
+  const updated = runInTransaction((db) => {
+    const current = db
+      .prepare(
+        'SELECT name, service, tags FROM credentials WHERE id = ? AND user_id = ?',
+      )
+      .get(id, userId);
+    if (!current) return null;
+
+    const nextName = name !== undefined ? name : current.name;
+    const nextService = service !== undefined ? service : current.service;
+    const nextTags = tags !== undefined ? JSON.stringify(tags) : current.tags;
+
+    db.prepare(
+      `
+      UPDATE credentials
+      SET name = ?, service = ?, tags = ?, updated_at = ?
+      WHERE id = ? AND user_id = ?
+    `,
+    ).run(nextName, nextService, nextTags, timestamp, id, userId);
+    return true;
+  });
+
+  if (!updated) return null;
+  return findById(id, userId);
+}
+
+function rewrapDeks(rewrapFn) {
+  return runInTransaction((db) => {
+    const rows = db
+      .prepare(
+        `
+        SELECT c.id, v.version, v.wrapped_dek
+        FROM credentials c
+        JOIN credential_versions v ON v.credential_id = c.id
+        ORDER BY c.id, v.version
+      `,
+      )
+      .all();
+
+    const stats = { rewrapped: 0, already: 0, skippedLegacy: 0, failed: 0 };
+    const update = db.prepare(
+      `
+      UPDATE credential_versions
+      SET wrapped_dek = ?
+      WHERE credential_id = ? AND version = ?
+    `,
+    );
+
+    for (const row of rows) {
+      if (!row.wrapped_dek) {
+        stats.skippedLegacy += 1;
+        continue;
+      }
+      const result = rewrapFn({
+        id: row.id,
+        version: row.version,
+        wrappedDek: row.wrapped_dek,
+      });
+      if (result.status === 'rewrapped') {
+        update.run(result.wrappedDek, row.id, row.version);
+        stats.rewrapped += 1;
+      } else if (result.status === 'already') {
+        stats.already += 1;
+      } else {
+        stats.failed += 1;
+      }
+    }
+
+    return stats;
+  });
 }
 
 function listVersions(id, userId) {
@@ -286,9 +360,11 @@ module.exports = {
   findByIdAndVersion,
   list,
   listVersions,
+  updateMetadata,
   rotate,
   exists,
   remove,
   consumeUse,
+  rewrapDeks,
   isExpired,
 };
