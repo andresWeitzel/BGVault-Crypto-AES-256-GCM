@@ -17,10 +17,10 @@
 
 <div align="right">
   <a href="../../../README.md" title="Español">
-    <img src="./arg-flag.png" width="64" height="40" alt="Español" title="Español" />
+    <img src="./arg-flag.jpg" width="64" height="40" alt="Español" title="Español" />
   </a>
   <a href="./README.en.md" title="Inglés">
-    <img src="./eeuu-flag.png" width="64" height="40" alt="Inglés" title="Inglés" />
+    <img src="./eeuu-flag.jpg" width="64" height="40" alt="Inglés" title="Inglés" />
   </a>
 </div>
 
@@ -30,7 +30,7 @@
 
 </div>
 
-REST vault for **passwords, API keys, tokens and notes**. Every credential is encrypted with **AES-256-GCM** before it hits SQLite; list and GET by id return **metadata only**. Plaintext never travels in a query string: it comes out only through authenticated `POST /reveal`. Built with **Node.js** and **Express**, using **`node:crypto` only** (no `bcrypt`, `crypto-js` or external KMS).
+BGVault keeps passwords, API keys, tokens and notes in one place, behind an account. The list shows the name, service and tags of each credential, and the secret appears only when the signed-in person chooses to reveal it. It is meant to keep those keys organized and available both on your machine and in a public demo.
 
 <div align="left">
 <a href="https://bgvault.onrender.com" target="_blank" rel="noopener noreferrer" title="Live"><img src="../icons/detail-actions/live-pill.svg" alt="Live" width="96" height="32" border="0" /></a>

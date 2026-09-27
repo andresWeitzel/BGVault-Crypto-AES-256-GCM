@@ -17,10 +17,10 @@
 
 <div align="right">
   <a href="./README.md" title="Español">
-    <img src="./doc/assets/translation/arg-flag.png" width="64" height="40" alt="Español" title="Español" />
+    <img src="./doc/assets/translation/arg-flag.jpg" width="64" height="40" alt="Español" title="Español" />
   </a>
   <a href="./doc/assets/translation/README.en.md" title="Inglés">
-    <img src="./doc/assets/translation/eeuu-flag.png" width="64" height="40" alt="Inglés" title="Inglés" />
+    <img src="./doc/assets/translation/eeuu-flag.jpg" width="64" height="40" alt="Inglés" title="Inglés" />
   </a>
 </div>
 
@@ -30,10 +30,10 @@
 
 </div>
 
-Vault REST para almacenar de forma segura **contraseñas, API keys, tokens y notas**. Cada credencial se cifra con **AES-256-GCM** antes de persistirse; los listados y el GET por id solo devuelven **metadatos**. El texto plano nunca viaja en query string: sale únicamente por `POST /reveal` con autenticación. Armado con **Node.js** y **Express**, usando **solo `node:crypto`** (sin `bcrypt`, `crypto-js` ni KMS externos).
+BGVault guarda contraseñas, claves de API, tokens y notas en un solo lugar, con acceso por cuenta. En el listado se ve el nombre, el servicio y las etiquetas de cada credencial, y el secreto solo aparece cuando quien tiene la sesión decide mostrarlo. Sirve para ordenar esas claves y tenerlas disponibles tanto en tu máquina como en una demo pública.
 
 <div align="left">
-<a href="https://bgvault.onrender.com" target="_blank" rel="noopener noreferrer" title="Ver en vivo"><img src="./doc/assets/icons/detail-actions/live-pill.svg" alt="Live" width="96" height="32" border="0" /></a>
+<a href="https://bgvault.onrender.com" target="_blank" rel="noopener noreferrer" title="Ver live"><img src="./doc/assets/icons/detail-actions/ver-live-pill.svg" alt="Ver live" width="96" height="32" border="0" /></a>
 <br>
 <a href="https://github.com/andresWeitzel/BGVault-Crypto-AES-256-GCM/blob/master/collections/bgvault.postman_collection.json" target="_blank" rel="noopener noreferrer" title="Colección de Postman"><img src="./doc/assets/icons/detail-actions/postman-pill.svg" alt="Postman" width="96" height="32" border="0" /></a>
 </div>
