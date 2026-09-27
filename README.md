@@ -30,7 +30,7 @@
 
 </div>
 
-BGVault guarda contraseñas, claves de API, tokens y notas en un solo lugar, con acceso por cuenta. En el listado se ve el nombre, el servicio y las etiquetas de cada credencial, y el secreto solo aparece cuando quien tiene la sesión decide mostrarlo. Sirve para ordenar esas claves y tenerlas disponibles tanto en tu máquina como en una demo pública.
+BGVault reúne tus contraseñas, claves de API, tokens y notas en un gestor propio, con acceso por cuenta. Cada credencial se reconoce por su nombre, su servicio y sus etiquetas, y el contenido permanece oculto hasta que decidís verlo. Menos claves sueltas, más control sobre lo que guardás.
 
 <div align="left">
 <a href="https://bgvault.onrender.com" target="_blank" rel="noopener noreferrer" title="Ver live"><img src="./doc/assets/icons/detail-actions/ver-live-pill.svg" alt="Ver live" width="96" height="32" border="0" /></a>

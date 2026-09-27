@@ -30,7 +30,7 @@
 
 </div>
 
-BGVault keeps passwords, API keys, tokens and notes in one place, behind an account. The list shows the name, service and tags of each credential, and the secret appears only when the signed-in person chooses to reveal it. It is meant to keep those keys organized and available both on your machine and in a public demo.
+BGVault brings your passwords, API keys, tokens and notes into your own credential manager, tied to your account. Each credential is recognized by its name, service and tags, and the content stays hidden until you choose to open it. Fewer loose keys, more control over what you keep.
 
 <div align="left">
 <a href="https://bgvault.onrender.com" target="_blank" rel="noopener noreferrer" title="Live"><img src="../icons/detail-actions/live-pill.svg" alt="Live" width="96" height="32" border="0" /></a>
