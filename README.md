@@ -1,161 +1,155 @@
 <div align="center">
-  <img src="./doc/assets/bgvault-background.png" alt="BGVault — Crypto AES-256-GCM" width="880" />
-</div>
-
+<img src="./doc/assets/bgvault-background.es.jpg" alt="BGVault Crypto AES-256-GCM" width="100%" />
 <div align="right">
-  <img width="26" height="26" src="./doc/assets/icons/backend/javascript-typescript/svg/nodejs-color.svg" alt="Node.js" />
-  &nbsp;
-  <img width="26" height="26" src="./doc/assets/icons/backend/javascript-typescript/svg/express-mark.svg" alt="Express" />
-  &nbsp;
-  <img width="26" height="26" src="./doc/assets/icons/backend/databases/svg/sqlite.svg" alt="SQLite" />
-  &nbsp;
-  <img width="26" height="26" src="./doc/assets/icons/backend/crypto/svg/aes-256-gcm.svg" alt="AES-256-GCM" />
-  &nbsp;
-  <img width="26" height="26" src="./doc/assets/icons/backend/crypto/svg/jwt.svg" alt="JWT" />
-  &nbsp;
-  <img width="26" height="26" src="./doc/assets/icons/devops/png/npm.png" alt="npm" />
-  &nbsp;
-  <img width="26" height="26" src="./doc/assets/icons/devops/png/git.png" alt="Git" />
-  &nbsp;
-  <img width="26" height="26" src="./doc/assets/icons/devops/svg/github-mark.svg" alt="GitHub" />
+<img width="16" height="16" src="./doc/assets/icons/backend/crypto/svg/aes-256-gcm.svg" alt="AES-256-GCM" />
+<img width="16" height="16" src="./doc/assets/icons/backend/databases/svg/sqlite.svg" alt="SQLite" />
+<img width="16" height="16" src="./doc/assets/icons/backend/javascript-typescript/svg/nodejs-color.svg" alt="Node.js" />
+<img width="16" height="16" src="./doc/assets/icons/devops/png/git.png" alt="Git" />
+<img width="16" height="16" src="./doc/assets/icons/devops/png/npm.png" alt="npm" />
+<img width="16" height="16" src="./doc/assets/icons/backend/javascript-typescript/svg/express-mark.svg" alt="Express" />
+<img width="16" height="16" src="./doc/assets/icons/backend/crypto/svg/jwt.svg" alt="JWT" />
+</div>
 </div>
 
 <br>
 
+<br>
+
 <div align="right">
-  <a href="./doc/assets/translation/README.es.md" target="_blank">
-    <img src="./doc/assets/translation/arg-flag.svg" width="48" height="36" alt="Español" />
+  <a href="./README.md" title="Español">
+    <img src="./doc/assets/translation/arg-flag.png" width="64" height="40" alt="Español" title="Español" />
   </a>
-  &nbsp;
-  <a href="./README.md" target="_blank">
-    <img src="./doc/assets/translation/eeuu-flag.png" width="48" height="36" alt="English" />
+  <a href="./doc/assets/translation/README.en.md" title="Inglés">
+    <img src="./doc/assets/translation/eeuu-flag.png" width="64" height="40" alt="Inglés" title="Inglés" />
   </a>
 </div>
 
 <div align="center">
 
-# BGVault — Encrypted Credential Vault (AES-256-GCM) ![(status-completed)](./doc/assets/icons/badges/status-completed.svg)
+# BGVault AES-256-GCM ![(status-completed)](./doc/assets/icons/badges/status-completed.svg)
 
 </div>
 
-REST vault for **passwords, API keys, tokens and notes**. Every credential is encrypted with **AES-256-GCM** before it hits SQLite; list and GET by id return **metadata only**. Plaintext never travels in a query string: it comes out only through authenticated `POST /reveal`. Built with **Node.js** and **Express**, using **`node:crypto` only** (no `bcrypt`, `crypto-js` or external KMS).
+Vault REST para almacenar de forma segura **contraseñas, API keys, tokens y notas**. Cada credencial se cifra con **AES-256-GCM** antes de persistirse; los listados y el GET por id solo devuelven **metadatos**. El texto plano nunca viaja en query string: sale únicamente por `POST /reveal` con autenticación. Armado con **Node.js** y **Express**, usando **solo `node:crypto`** (sin `bcrypt`, `crypto-js` ni KMS externos).
 
-* [**API (production):**](https://bgvault.onrender.com)
-* [**API (local):**](http://localhost:3000/)
-<!-- Functional tests video: add YouTube link here when recorded. -->
+<div align="left">
+<a href="https://bgvault.onrender.com" target="_blank" rel="noopener noreferrer" title="Ver en vivo"><img src="./doc/assets/icons/detail-actions/live-pill.svg" alt="Live" width="96" height="32" border="0" /></a>
+<br>
+<a href="https://github.com/andresWeitzel/BGVault-Crypto-AES-256-GCM/blob/master/collections/bgvault.postman_collection.json" target="_blank" rel="noopener noreferrer" title="Colección de Postman"><img src="./doc/assets/icons/detail-actions/postman-pill.svg" alt="Postman" width="96" height="32" border="0" /></a>
+</div>
 
 <br>
 
-## Index 📜
+## Índice 📜
 
 <details>
-  <summary> View details </summary>
+  <summary> Ver detalle </summary>
 
 <br>
 
 <div align="right">
 
-`Last update: 17/08/26`
+`Última actualización: 17/08/26`
 
 </div>
 
-### Section 1) Description, configuration and technologies
+### Sección 1) Descripción, configuración y tecnologías
 
-* [1.0) Description.](#10-description-)
-* [1.1) Project execution.](#11-project-execution-)
-* [1.2) Project structure.](#12-project-structure-)
-* [1.3) Technologies.](#13-technologies-)
+* [1.0) Descripción.](#10-descripción-)
+* [1.1) Ejecución.](#11-ejecución-)
+* [1.2) Estructura.](#12-estructura-)
+* [1.3) Tecnologías.](#13-tecnologías-)
 
-### Section 2) Usage flow and behavior
+### Sección 2) Flujo de uso y comportamiento
 
-* [2.0) App flow.](#20-app-flow-)
-* [2.1) Authentication.](#21-authentication-)
-* [2.2) Response contract.](#22-response-contract-)
-* [2.3) API endpoints.](#23-api-endpoints-)
-* [2.4) Security, encryption and limits.](#24-security-encryption-and-limits-)
+* [2.0) Flujo de la app.](#20-flujo-de-la-app-)
+* [2.1) Autenticación.](#21-autenticación-)
+* [2.2) Contrato de respuesta.](#22-contrato-de-respuesta-)
+* [2.3) Endpoints de la API.](#23-endpoints-de-la-api-)
+* [2.4) Seguridad, cifrado y límites.](#24-seguridad-cifrado-y-límites-)
 
-### Section 3) Testing, hosted demo and references
+### Sección 3) Pruebas, demo alojada y referencias
 
-* [3.0) Functional test.](#30-functional-test-)
-* [3.1) Hosted sandbox (Render).](#31-hosted-sandbox-render-)
-* [3.2) Contributing.](#32-contributing-)
-* [3.3) License.](#33-license-)
+* [3.0) Prueba funcional.](#30-prueba-funcional-)
+* [3.1) Sandbox alojado (Render).](#31-sandbox-alojado-render-)
+* [3.2) Contribuir.](#32-contribuir-)
+* [3.3) Licencia.](#33-licencia-)
 
 </details>
 
 <br>
 
-## Section 1) Description, configuration and technologies
+## Sección 1) Descripción, configuración y tecnologías
 
-### 1.0) Description [🔝](#index-)
+### 1.0) Descripción [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 <br>
 
-This is a **credential vault API**, not a standalone encrypt/decrypt toy. You register, get a JWT, then create / list / patch / reveal / verify / rotate / delete secrets. Listings never include ciphertext or plaintext.
+Esto es una **API vault de credenciales**, no un encriptador suelto. Te registrás, recibís un JWT y después creás / listás / parchás / revelás / verificás / rotás / borrás secretos. Los listados nunca incluyen ciphertext ni plaintext.
 
-Why it exists:
+Para qué existe:
 
-* Storing secrets in a REST body that later leaks to logs or `GET ?decrypt=true` is the usual trap. Reveal is **POST** on purpose.
-* Envelope encryption means a leaked row is not enough: each version has its own DEK; `ENCRYPTION_KEY` only wraps that DEK.
-* Recruiter / reviewer sandbox: the **same API** is public at [https://bgvault.onrender.com](https://bgvault.onrender.com) (Render Free). Local SQLite keeps history across restarts; the hosted instance does not (see 3.1).
+* Guardar secretos en un body REST que después se filtra a logs o a `GET ?decrypt=true` es la trampa habitual. Reveal es **POST** a propósito.
+* Envelope encryption: una fila filtrada no alcanza; cada versión tiene su DEK; `ENCRYPTION_KEY` solo envuelve esa DEK.
+* Sandbox para reclutadores / reviewers: la **misma API** está pública en [https://bgvault.onrender.com](https://bgvault.onrender.com) (Render Free). En local la SQLite conserva historia entre reinicios; en el host no (ver 3.1).
 
-What the product delivers:
+Qué entrega el producto:
 
-* **Four types:** `password`, `api_key`, `token`, `note` — each with a validated payload.
-* **AES-256-GCM** authenticated encryption; GCM tag detects tampering.
-* **AAD bound to the credential:** `credential:<id>:<type>:<version>` — a blob cannot be relocated to another id, type or version.
-* **Envelope encryption:** 32-byte random DEK per version; `ENCRYPTION_KEY` wraps it with PBKDF2. Revealing a version does not run the master key over the payload bytes.
-* **CSPRNG generator:** `POST /api/generate` builds passwords, API keys and tokens with `crypto.randomInt`.
-* **PBKDF2** 100,000 iterations, SHA-256, when **wrapping** the DEK (not on every payload byte).
-* **12-byte IV (NIST)** on payload and DEK wrap.
-* **SQLite persistence** (`node:sqlite`, no ORM): credentials and versions survive a local restart.
-* **TTL and one-time reveal:** `expiresAt` and `maxReveals` per version; expired or exhausted reveal/verify returns **410** without decrypting.
-* **Versioning and rotation:** a payload change creates a new version; the previous one stays revealable.
-* **Audit log:** generate, create, get, patch, reveal, verify, rotate, delete, versions, register, login and logout land in `audit_events` (no plaintext).
-* **UUID ids** (numeric `index` was dropped).
-* **Cleartext metadata, encrypted payload:** `name`, `service` and `tags` can be filtered and **PATCH**ed; GET never shows the secret.
-* **Paginated lists:** `GET /api/credentials` and `GET /api/audit` use `limit` (max 200) and `offset`.
-* **KEK rotation:** `ENCRYPTION_KEY_NEXT` + `npm run rewrap-keys` rewraps `wrapped_dek` without touching the payload.
-* **JWT auth:** register/login issue a Bearer HS256 with `jti`; `POST /api/auth/logout` revokes it until `exp`.
-* **Per-user isolation:** every credential and audit event has a `user_id`; a foreign JWT gets **404**, not 403.
-* **Uniform JSON envelope:** successes include `requestId` + `timestamp`; errors are `{ error: { code, message }, requestId, timestamp }`.
-* **Rate limit:** caps on register/login, reveal/verify, and optional global per IP via `RATE_LIMIT_IP_MAX` (`X-RateLimit-*`, **429** `RATE_LIMITED`).
-* **No default key:** the process will not start with `default-key-change-me…`; it requires `ENCRYPTION_KEY` and `JWT_SECRET` (≥ 32 characters).
-* **Postman collection:** success (201/200) and error (400/401/404/409/410) cases with `pm.test`; `environment` = `local` or `production`.
-* **Reusable module:** copy `src/crypto/lib.js` into another Node project with no extra npm deps.
-* **Env setup:** `npm run setup-env` creates or completes `.env`.
+* **Cuatro tipos:** `password`, `api_key`, `token` y `note`, cada uno con payload validado.
+* **AES-256-GCM**: cifrado autenticado; el tag GCM detecta manipulación del ciphertext.
+* **AAD ligado a la credencial:** `credential:<id>:<type>:<version>` — un blob no se puede reubicar en otro id, tipo o versión.
+* **Envelope encryption:** DEK aleatoria de 32 bytes por versión; `ENCRYPTION_KEY` solo envuelve esa DEK (PBKDF2). Revelar una versión no deriva la clave maestra sobre el payload.
+* **Generador CSPRNG:** `POST /api/generate` arma passwords, API keys y tokens con `crypto.randomInt`.
+* **PBKDF2** 100.000 iteraciones con SHA-256 al **envolver** la DEK (no en cada byte del payload).
+* **IV de 12 bytes (NIST)** en payload y en el wrap de la DEK.
+* **Persistencia SQLite** (`node:sqlite`, sin ORM): credenciales y versiones sobreviven al reinicio local.
+* **TTL y one-time reveal:** `expiresAt` y `maxReveals` por versión; reveal/verify vencidos o agotados responden **410** sin desencriptar.
+* **Versionado y rotación:** cada cambio de payload crea una versión nueva; la anterior sigue revelable.
+* **Auditoría:** generate, create, get, patch, reveal, verify, rotate, delete, versions, register, login y logout quedan en `audit_events` (sin plaintext).
+* **IDs UUID** (se abandonó el `index` numérico).
+* **Metadatos en claro, payload cifrado:** `name`, `service` y `tags` se pueden filtrar y **editar con PATCH**; la clave no aparece en GET.
+* **Listados paginados:** `GET /api/credentials` y `GET /api/audit` usan `limit` (máx. 200) y `offset`.
+* **Rotación de KEK:** `ENCRYPTION_KEY_NEXT` + `npm run rewrap-keys` reenvuelve `wrapped_dek` sin tocar el payload.
+* **Autenticación JWT:** register/login emiten un Bearer HS256 con `jti`; `POST /api/auth/logout` lo revoca hasta `exp`.
+* **Aislamiento por usuario:** cada credencial y cada evento de auditoría pertenece a un `user_id`; un JWT ajeno recibe **404**, no 403.
+* **Sobre JSON uniforme:** éxitos llevan `requestId` + `timestamp`; errores son `{ error: { code, message }, requestId, timestamp }`.
+* **Rate limit:** tope en register/login, reveal/verify y (opcional) global por IP vía `RATE_LIMIT_IP_MAX` (`X-RateLimit-*`, **429** `RATE_LIMITED`).
+* **Sin clave por defecto:** el servidor no arranca con `default-key-change-me…`; exige `ENCRYPTION_KEY` y `JWT_SECRET` (≥ 32 caracteres).
+* **Collection de Postman:** casos de éxito (201/200) y error (400/401/404/409/410) con `pm.test`; `environment` = `local` o `production`.
+* **Módulo reutilizable:** `src/crypto/lib.js` se copia a otros proyectos Node sin dependencias extra.
+* **Setup de entorno:** `npm run setup-env` genera o completa `.env`.
 
-Accounts live in the `users` table. Legacy versions without `wrapped_dek` still decrypt with direct encryption.
+Las cuentas viven en la tabla `users`. Versiones antiguas sin `wrapped_dek` se siguen revelando con el cifrado directo (legado).
 
-To rotate `ENCRYPTION_KEY` without re-encrypting payloads: set `ENCRYPTION_KEY_NEXT`, run `npm run rewrap-keys`, copy the new key over `ENCRYPTION_KEY` and drop `NEXT`. While `NEXT` is set, `seal` uses that key and `open` accepts both.
+Para rotar `ENCRYPTION_KEY` sin re-cifrar payloads: definí `ENCRYPTION_KEY_NEXT`, corré `npm run rewrap-keys`, copiá la clave nueva sobre `ENCRYPTION_KEY` y borré `NEXT`. Mientras `NEXT` esté definida, `seal` usa esa clave y `open` acepta ambas.
 
-**Requirements:**
+**Requisitos:**
 
-* [Node.js](https://nodejs.org/) **22.13+** (`node:sqlite`; 22 or 24/26 recommended).
+* [Node.js](https://nodejs.org/) **22.13+** (`node:sqlite`; recomendado 22 o 24/26).
 * npm.
-* Postman (collection) or Bash / Git Bash (`client.sh`).
-* `npm test` does **not** need a separate server: it boots the app on an ephemeral port with SQLite `:memory:`.
+* Postman (collection) o Bash / Git Bash (`client.sh`).
+* `npm test` **no** necesita servidor aparte: levanta la app en un puerto efímero con SQLite `:memory:`.
 
 </details>
 
-### 1.1) Project execution [🔝](#index-)
+### 1.1) Ejecución [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 <br>
 
-* Clone and enter the repo:
+* Clonar y entrar al repo:
 
 ```bash
 git clone https://github.com/andresWeitzel/Crypto-AES-256-GCM.git
 cd Crypto-AES-256-GCM
 ```
 
-* Install, write `.env`, start (never commit `.env`):
+* Instalar, escribir `.env` y arrancar (nunca subas `.env`):
 
 ```bash
 npm install
@@ -163,128 +157,128 @@ npm run setup-env
 npm run server
 ```
 
-The vault listens on `http://localhost:3000` (or `PORT`). Console:
+El vault queda en `http://localhost:3000` (o el `PORT` configurado). En consola:
 
 ```
 BGVault corriendo en http://localhost:3000
 Auth: JWT Bearer (POST /api/auth/register, /login; POST /api/auth/logout)
 ```
 
-`setup-env` writes `.env` at the project root with:
+`setup-env` escribe `.env` en la raíz con:
 
-| Variable | Role |
-|----------|------|
-| `PORT` | HTTP port (default `3000`) |
-| `ENCRYPTION_KEY` | Master encryption key (≥ 32 characters, random) |
-| `ENCRYPTION_KEY_NEXT` | Optional new KEK; when set, `seal` uses NEXT and `open` accepts both |
-| `JWT_SECRET` | HMAC-SHA256 signing secret (must differ from `ENCRYPTION_KEY`) |
-| `JWT_EXPIRES_IN` | JWT lifetime in seconds (default `28800` = 8 h; min 60, max 7 days) |
-| `SQLITE_PATH` | SQLite file (default `data/bgvault.sqlite`) |
-| `RATE_LIMIT_AUTH_MAX` | Register/login cap per IP (default `60`) |
-| `RATE_LIMIT_AUTH_WINDOW_MS` | Auth window in ms (default `600000` = 10 min) |
-| `RATE_LIMIT_REVEAL_MAX` | Reveal/verify cap per user (default `120`) |
-| `RATE_LIMIT_REVEAL_WINDOW_MS` | Reveal/verify window in ms (default `60000` = 1 min) |
-| `RATE_LIMIT_IP_MAX` | **Global** `/api/*` cap per IP; empty = off. Local: `.env`. Production: `render.yaml` |
-| `RATE_LIMIT_IP_WINDOW_MS` | Global cap window (default `600000` = 10 min) |
+| Variable | Rol |
+|----------|-----|
+| `PORT` | Puerto HTTP (por defecto `3000`) |
+| `ENCRYPTION_KEY` | Clave maestra de cifrado (≥ 32 caracteres, aleatoria) |
+| `ENCRYPTION_KEY_NEXT` | KEK nueva opcional; con ella activa, `seal` usa NEXT y `open` acepta ambas |
+| `JWT_SECRET` | Firma HMAC-SHA256 de los tokens (distinta de `ENCRYPTION_KEY`) |
+| `JWT_EXPIRES_IN` | Segundos de vida del JWT (por defecto `28800` = 8 h; min 60, máx 7 días) |
+| `SQLITE_PATH` | Ruta del archivo SQLite (por defecto `data/bgvault.sqlite`) |
+| `RATE_LIMIT_AUTH_MAX` | Tope de register/login por IP (por defecto `60`) |
+| `RATE_LIMIT_AUTH_WINDOW_MS` | Ventana de auth en ms (por defecto `600000` = 10 min) |
+| `RATE_LIMIT_REVEAL_MAX` | Tope de reveal/verify por usuario (por defecto `120`) |
+| `RATE_LIMIT_REVEAL_WINDOW_MS` | Ventana de reveal/verify en ms (por defecto `60000` = 1 min) |
+| `RATE_LIMIT_IP_MAX` | Tope **global** de `/api/*` por IP; vacío = desactivado. En local: `.env`. En production: `render.yaml` |
+| `RATE_LIMIT_IP_WINDOW_MS` | Ventana del tope global (por defecto `600000` = 10 min) |
 
-Postman demo user: `demo@bgvault.local` / `bgvault-dev-password` (created by the Runner). Use different, long values anywhere that is not a throwaway sandbox.
+En la collection de Postman el usuario de demo es `demo@bgvault.local` / `bgvault-dev-password` (se crea en el Runner). En cualquier sandbox que no sea de tirar, usá valores distintos y largos.
 
-**Do not** commit `.env` (it is in `.gitignore`). Local config lives in `.env` / `.env.example`. Hosted config for Render is `render.yaml` (Blueprint).
+**No** subas `.env` al repositorio (está en `.gitignore`). La config local vive en `.env` / `.env.example`. La de Render es `render.yaml` (Blueprint).
 
-#### How to create `.env`
+#### Cómo crear el `.env`
 
-**Option 1 — setup (recommended)**
+**Opción 1 — setup (recomendado)**
 
 ```bash
 npm run setup-env
 ```
 
-If keys are missing it generates `ENCRYPTION_KEY` and `JWT_SECRET` (32 bytes hex each). Existing keys are kept.
+Si faltan claves, genera `ENCRYPTION_KEY` y `JWT_SECRET` (32 bytes en hex cada una). Si ya existen, las conserva.
 
-**Option 2 — copy the example**
+**Opción 2 — copiar el ejemplo**
 
 ```bash
 cp .env.example .env
 ```
 
-Fill `ENCRYPTION_KEY` and `JWT_SECRET` (at least 32 characters each).
+Completá `ENCRYPTION_KEY` y `JWT_SECRET` (mínimo 32 caracteres cada una).
 
-**Option 3 — process environment**
+**Opción 3 — variables de entorno del proceso**
 
 ```bash
-export ENCRYPTION_KEY="your-secure-key-at-least-32-characters"
-export JWT_SECRET="another-distinct-secret-32-chars-min"
+export ENCRYPTION_KEY="tu-clave-segura-de-32-caracteres-minimo"
+export JWT_SECRET="otro-secreto-distinto-de-32-caracteres-min"
 export PORT=3000
 ```
 
-The server loads `.env` at boot but **does not overwrite** variables already set on the process.
+El servidor carga `.env` al arrancar, pero **no pisa** variables ya definidas en el proceso.
 
-There is no hardcoded key. If `ENCRYPTION_KEY` or `JWT_SECRET` is missing, shorter than 32 characters, or `ENCRYPTION_KEY` is the old insecure demo value, the process **exits** and asks for `npm run setup-env`. `JWT_SECRET` is **not** derived from `ENCRYPTION_KEY`.
+No hay clave hardcodeada. Si `ENCRYPTION_KEY` o `JWT_SECRET` faltan, miden menos de 32 caracteres, o `ENCRYPTION_KEY` es la antigua clave insegura de demo, el proceso **termina con error** y pide `npm run setup-env`. `JWT_SECRET` **no** se deriva de `ENCRYPTION_KEY`.
 
-#### Useful scripts
+#### Scripts útiles
 
-| Script | Description |
+| Script | Descripción |
 |--------|-------------|
-| `npm run setup-env` | Create or complete `.env` (`ENCRYPTION_KEY`, `JWT_SECRET`) |
-| `npm run server` | Start the Express vault locally (`npm start` is the same entry) |
-| `npm run client:post` | Register/login `demo@bgvault.local` and create a `password` credential |
-| `npm run client:get` | List credentials for the demo user (metadata only) |
-| `npm run decrypt-env` | Print `*_ENCRYPTED` values from `.env`, if any |
-| `npm run rewrap-keys` | Rewrap `wrapped_dek` with `ENCRYPTION_KEY_NEXT` (payload untouched) |
-| `npm test` | Native tests (`node --test`): auth, logout/`jti`, isolation, PATCH, paging, 410 |
+| `npm run setup-env` | Genera o completa `.env` (`ENCRYPTION_KEY`, `JWT_SECRET`) |
+| `npm run server` | Inicia el vault Express en local (`npm start` es el mismo entry) |
+| `npm run client:post` | Registra/loguea `demo@bgvault.local` y crea una credencial `password` |
+| `npm run client:get` | Lista credenciales del usuario demo (solo metadatos) |
+| `npm run decrypt-env` | Muestra variables `*_ENCRYPTED` del `.env`, si existen |
+| `npm run rewrap-keys` | Reenvuelve `wrapped_dek` con `ENCRYPTION_KEY_NEXT` (no toca el payload) |
+| `npm test` | Tests nativos (`node --test`): auth, logout/`jti`, aislamiento, PATCH, paginación, 410 |
 
-`client:*` hits `http://localhost:3000`. Against production use Postman (`environment=production`) or curl with `BASE=https://bgvault.onrender.com`.
+Los `client:*` pegan a `http://localhost:3000`. Contra production usá Postman (`environment=production`) o curl con `BASE=https://bgvault.onrender.com`.
 
 </details>
 
-### 1.2) Project structure [🔝](#index-)
+### 1.2) Estructura [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 ```
 bgvault/
 ├── src/
 │   ├── config/
-│   │   └── env.js                   # Load .env; validate ENCRYPTION_KEY / JWT_SECRET / NEXT
+│   │   └── env.js                   # Carga .env y valida ENCRYPTION_KEY / JWT_SECRET / NEXT
 │   ├── auth/
 │   │   ├── password.js              # scrypt (hash / verify)
 │   │   └── jwt.js                   # JWT HS256 + jti
 │   ├── middleware/
-│   │   ├── requireAuth.js           # Bearer JWT, jti not revoked
-│   │   ├── requestId.js             # X-Request-Id (UUID or caller correlation)
-│   │   └── rateLimit.js             # in-memory cap (auth + reveal + optional IP)
+│   │   ├── requireAuth.js           # Bearer JWT, jti no revocado
+│   │   ├── requestId.js             # X-Request-Id (UUID o correlacioná el tuyo)
+│   │   └── rateLimit.js             # tope in-memory (auth + reveal + IP opcional)
 │   ├── http/
 │   │   ├── respond.js               # envelope { error: { code, message } }
-│   │   └── paging.js                # limit/offset (list and audit)
+│   │   └── paging.js                # limit/offset (list y audit)
 │   ├── db/
 │   │   └── sqlite.js                # node:sqlite, schema, WAL, migrate
 │   ├── store/
-│   │   ├── usersStore.js            # Accounts
-│   │   ├── credentialsStore.js      # Credentials + versions (scoped)
+│   │   ├── usersStore.js            # Cuentas
+│   │   ├── credentialsStore.js      # Credenciales + versiones (scoped)
 │   │   ├── auditStore.js            # Audit log (scoped)
-│   │   └── revokedTokensStore.js    # revoked jti until exp
+│   │   └── revokedTokensStore.js    # jti revocados hasta exp
 │   ├── controllers/
 │   │   ├── authController.js        # register, login, me, logout
 │   │   ├── generateController.js    # POST /api/generate
 │   │   ├── credentialController.js  # CRUD, patch, reveal, verify, rotate, versions
 │   │   └── auditController.js
 │   ├── crypto/
-│   │   ├── lib.js                   # encrypt / decrypt AES-256-GCM + AAD (DEK wrap)
-│   │   ├── envelope.js              # seal / open / rewrap DEK per version
+│   │   ├── lib.js                   # encrypt / decrypt AES-256-GCM + AAD (wrap de DEK)
+│   │   ├── envelope.js              # seal / open / rewrap de DEK por versión
 │   │   ├── generate.js              # CSPRNG passwords / api_key / token
-│   │   └── crypto-cli.js            # CLI: encrypt / decrypt a value
+│   │   └── crypto-cli.js            # CLI: cifrar / descifrar un valor
 │   ├── routes/
 │   │   ├── authRoutes.js            # /api/auth
 │   │   ├── generateRoutes.js        # /api/generate
 │   │   ├── credentialRoutes.js      # /api/credentials
 │   │   └── auditRoutes.js           # /api/audit
-│   ├── app.js                       # Express, headers, 404 / invalid JSON
+│   ├── app.js                       # Express, headers, 404/JSON inválido
 │   ├── server.js                    # load env, sqlite, listen
 │   └── setup/
-│       ├── setup-env.js             # Create or complete .env
-│       ├── rewrap-keys.js           # Rewrap DEKs with ENCRYPTION_KEY_NEXT
-│       └── decrypt-env.js           # Print *_ENCRYPTED
+│       ├── setup-env.js             # Genera o completa .env
+│       ├── rewrap-keys.js           # Reenvuelve DEKs con ENCRYPTION_KEY_NEXT
+│       └── decrypt-env.js           # Muestra *_ENCRYPTED
 ├── data/
 │   └── .gitkeep                     # bgvault.sqlite (gitignored)
 ├── collections/
@@ -293,116 +287,117 @@ bgvault/
 │   └── api.test.js                  # node --test (auth, jti, vault)
 ├── scripts/
 │   └── client/
-│       └── client.sh                # Bash client (post / get)
+│       └── client.sh                # Cliente bash (post / get)
 ├── doc/
-│   └── assets/                      # README banner, icons, flags, Spanish translation
-│       ├── bgvault-background.png   # Header image
+│   └── assets/                      # Banner del README, iconos, banderas, traducción
+│       ├── bgvault-background.es.jpg # Cabecera del README en español
+│       ├── bgvault-background.en.jpg # Cabecera del README en inglés
 │       ├── icons/
 │       └── translation/
-│           └── README.es.md
+│           └── README.en.md         # Documentación en inglés
 ├── .env.example
 ├── .nvmrc
-├── render.yaml                      # Render Blueprint (production env)
+├── render.yaml                      # Blueprint de Render (env de production)
 ├── package.json
-└── README.md
+└── README.md                        # Documentación en español
 ```
 
 </details>
 
-### 1.3) Technologies [🔝](#index-)
+### 1.3) Tecnologías [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 <br>
 
-| **Technology** | **Version** | **Purpose** |
-| -------------- | ----------- | ----------- |
+| **Tecnología** | **Versión** | **Propósito** |
+| -------------- | ----------- | ------------- |
 | [Node.js](https://nodejs.org/) | **≥ 22.13** | **Runtime** (`node:crypto`, `node:sqlite`) |
-| [Express](https://expressjs.com/) | **4.x** | **HTTP API** |
+| [Express](https://expressjs.com/) | **4.x** | **API HTTP** |
 | `node:crypto` | **built-in** | **AES-256-GCM, scrypt, HMAC-SHA256, UUID** |
-| `node:sqlite` | **built-in** | **Persistence, versions, audit** |
-| AES-256-GCM | **NIST** | **Authenticated encryption** |
-| [Postman](https://www.postman.com/) Collection v2.1 | **collection** | **API contract tests** |
-| [Render](https://render.com/) | **Free** | **Public sandbox** (`render.yaml`) |
+| `node:sqlite` | **built-in** | **Persistencia, versiones, auditoría** |
+| AES-256-GCM | **NIST** | **Cifrado autenticado** |
+| [Postman](https://www.postman.com/) Collection v2.1 | **collection** | **Tests de contrato de la API** |
+| [Render](https://render.com/) | **Free** | **Sandbox público** (`render.yaml`) |
 
-**Native modules:** `node:crypto`, `node:sqlite`, `node:fs` / `node:path`, `node:readline` (reserved for interactive setup).
+**Módulos nativos:** `node:crypto`, `node:sqlite`, `node:fs` / `node:path`, `node:readline` (reservado para flujos interactivos de setup).
 
-**Official docs:**
+**Docs oficiales:**
 
 * Express: https://expressjs.com/
 * Node.js crypto: https://nodejs.org/api/crypto.html
 * SQLite (Node): https://nodejs.org/api/sqlite.html
 * Render Blueprint spec: https://render.com/docs/blueprint-spec
 
-This project does **not** use third-party crypto libraries (`bcrypt`, `crypto-js`, etc.). All encryption goes through `node:crypto`.
+Este proyecto **no** usa librerías externas de criptografía (`bcrypt`, `crypto-js`, etc.). Todo el cifrado pasa por `node:crypto`.
 
 </details>
 
 <br>
 
-## Section 2) Usage flow and behavior
+## Sección 2) Flujo de uso y comportamiento
 
-### 2.0) App flow [🔝](#index-)
+### 2.0) Flujo de la app [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 <br>
 
-The API is the same locally and in production. Change only the host.
+La API es la misma en local y en producción. Cambiá solo el host.
 
-| Environment | Base URL | For |
-|-------------|----------|-----|
-| **Local** | `http://localhost:3000` | development, `npm test`, full Postman Runner |
-| **Production** | [`https://bgvault.onrender.com`](https://bgvault.onrender.com) | public demo (Render Free) |
+| Entorno | Base URL | Para |
+|---------|----------|------|
+| **Local** | `http://localhost:3000` | desarrollo, `npm test`, Runner completo de Postman |
+| **Production** | [`https://bgvault.onrender.com`](https://bgvault.onrender.com) | demo pública (Render Free) |
 
-1. Process boots → loads `.env` (local) or injected env (`render.yaml` on Render) → validates keys → opens SQLite → listens (`HOST` defaults to `0.0.0.0` in production).
-2. `GET /` is the public index (auth and vault routes). `GET /health` is liveness.
-3. Client registers or logs in → receives Bearer JWT with `jti`.
-4. Client creates credentials (envelope seal), lists metadata, optionally PATCHes name/service/tags.
-5. Reveal / verify are POST; expiry and `maxReveals` return **410** without decrypting.
-6. Rotate creates a new version; previous versions stay in history.
-7. Logout stores `jti` in `revoked_tokens` until `exp`.
-8. Audit lists the **authenticated user’s** events only.
+1. Arranca el proceso → carga `.env` (local) o env inyectado (`render.yaml` en Render) → valida claves → abre SQLite → escucha (`HOST` por defecto `0.0.0.0` en production).
+2. `GET /` es el índice público (rutas de auth y vault). `GET /health` confirma que el proceso está vivo.
+3. El cliente se registra o inicia sesión → recibe un Bearer JWT con `jti`.
+4. Crea credenciales (seal de envelope), lista metadatos, opcionalmente PATCH de name/service/tags.
+5. Reveal / verify son POST; vencimiento y `maxReveals` responden **410** sin desencriptar.
+6. Rotate crea una versión nueva; las anteriores quedan en el historial.
+7. Logout guarda el `jti` en `revoked_tokens` hasta `exp`.
+8. Audit lista solo los eventos del **usuario autenticado**.
 
-In Postman the collection variable `environment` is `local` or `production`; a pre-request script sets `{{baseUrl}}` to those same URLs.
+En Postman la variable `environment` es `local` o `production`; un pre-request arma `{{baseUrl}}` con esas mismas URLs.
 
 </details>
 
-### 2.1) Authentication [🔝](#index-)
+### 2.1) Autenticación [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 <br>
 
-`GET /` and `GET /health` are public. `POST /api/auth/register` and `POST /api/auth/login` are also public (they issue the token).
+`GET /` y `GET /health` son públicos. `POST /api/auth/register` y `POST /api/auth/login` también (emiten el token).
 
-All `/api/credentials*`, `/api/audit*`, `POST /api/generate`, `GET /api/auth/me` and `POST /api/auth/logout` require:
+Todas las rutas `/api/credentials*`, `/api/audit*`, `POST /api/generate`, `GET /api/auth/me` y `POST /api/auth/logout` exigen:
 
 ```
 Authorization: Bearer <accessToken>
 ```
 
-Missing header, invalid or expired token, no `jti`, or deleted user: **401** `UNAUTHORIZED`. After logout the same token returns **401** `TOKEN_REVOKED`.
+Sin header, con un token inválido, expirado, sin `jti` o de un usuario borrado: **401** `UNAUTHORIZED`. Tras logout, el mismo token responde **401** `TOKEN_REVOKED`.
 
-The JWT is **HS256** signed with `JWT_SECRET` (`node:crypto.createHmac`) and carries `jti`. The account password is stored with **scrypt** (`N=16384, r=8, p=1`); it never comes back in JSON. A failed login returns **401** `INVALID_CREDENTIALS` (it does not disclose whether the email exists).
+El JWT es **HS256** firmado con `JWT_SECRET` (`node:crypto.createHmac`) y lleva `jti`. La contraseña de la cuenta se guarda con **scrypt** (`N=16384, r=8, p=1`); nunca viaja de vuelta en JSON. Un login fallido responde **401** `INVALID_CREDENTIALS` (no dice si el email existe).
 
-A user **cannot see** another user’s credentials: list, get, patch, reveal, rotate and audit filter by `user_id`. If the id exists but belongs to someone else, the API returns **404** (not 403), so existence is not leaked.
+Un usuario **no ve** las credenciales de otro: list, get, patch, reveal, rotate y audit filtran por `user_id`. Si el id existe pero es de otro dueño, la API responde **404** (no 403), para no filtrar existencia.
 
 </details>
 
-### 2.2) Response contract [🔝](#index-)
+### 2.2) Contrato de respuesta [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 <br>
 
-Every JSON response includes `timestamp` and `requestId` (also in the `X-Request-Id` header). If you send `X-Request-Id` (8–128 characters `A-Za-z0-9._:-`), it is reused; otherwise a UUID is generated.
+Toda respuesta JSON incluye `timestamp` y `requestId` (también en el header `X-Request-Id`). Si mandás `X-Request-Id` (8–128 caracteres `A-Za-z0-9._:-`), se reutiliza; si no, se genera un UUID.
 
-**Success** — the resource sits in `credential` / `credentials` / `user`. Reveal adds `payload` next to `credential` (GET never includes `payload`). `message` strings from the live API are in Spanish; branch on `error.code`, not on `message` text.
+**Éxito** — el recurso va en `credential` / `credentials` / `user`. Reveal suma `payload` al lado de `credential` (el GET nunca lleva `payload`). Los `message` de la API viven en español; el cliente debe ramificar por `error.code`, no por el texto de `message`.
 
 **Error:**
 
@@ -417,45 +412,45 @@ Every JSON response includes `timestamp` and `requestId` (also in the `X-Request
 }
 ```
 
-| `code` | Status | When |
-|--------|--------|------|
-| `VALIDATION` | 400 | Invalid body or query |
-| `JSON_INVALID` | 400 | Malformed JSON |
-| `UNAUTHORIZED` | 401 | Missing/invalid JWT, no `jti`, or deleted user |
-| `TOKEN_REVOKED` | 401 | Logout: `jti` is in `revoked_tokens` |
-| `INVALID_CREDENTIALS` | 401 | Login with wrong email/password |
-| `CREDENTIAL_NOT_FOUND` | 404 | Missing credential or another user’s |
-| `VERSION_NOT_FOUND` | 404 | Version number does not exist |
-| `ROUTE_NOT_FOUND` | 404 | Unknown HTTP path |
-| `EMAIL_TAKEN` | 409 | Register with an email already used |
-| `CREDENTIAL_EXPIRED` | 410 | `expiresAt` passed (no decrypt) |
-| `REVEAL_LIMIT` | 410 | `maxReveals` exhausted (no decrypt) |
-| `RATE_LIMITED` | 429 | Register/login, reveal/verify, or `RATE_LIMIT_IP_MAX` per IP |
-| `INTERNAL` | 500 | Unhandled failure (generic message) |
+| `code` | Status | Cuándo |
+|--------|--------|--------|
+| `VALIDATION` | 400 | Body o query inválido |
+| `JSON_INVALID` | 400 | JSON mal formado |
+| `UNAUTHORIZED` | 401 | JWT ausente, inválido, sin `jti` o usuario borrado |
+| `TOKEN_REVOKED` | 401 | Logout: el `jti` está en `revoked_tokens` |
+| `INVALID_CREDENTIALS` | 401 | Login con email/password incorrectos |
+| `CREDENTIAL_NOT_FOUND` | 404 | Credencial inexistente o de otro usuario |
+| `VERSION_NOT_FOUND` | 404 | Número de versión inexistente |
+| `ROUTE_NOT_FOUND` | 404 | Ruta HTTP desconocida |
+| `EMAIL_TAKEN` | 409 | Register con email ya usado |
+| `CREDENTIAL_EXPIRED` | 410 | `expiresAt` vencido (sin desencriptar) |
+| `REVEAL_LIMIT` | 410 | `maxReveals` agotado (sin desencriptar) |
+| `RATE_LIMITED` | 429 | Tope de register/login, reveal/verify o `RATE_LIMIT_IP_MAX` por IP |
+| `INTERNAL` | 500 | Fallo no controlado (mensaje genérico) |
 
-5xx responses log `requestId` on the console for correlation.
+Los 500 loguean el `requestId` en consola para correlacionar.
 
-Register/login: 60 req / 10 min per IP (`RATE_LIMIT_AUTH_MAX`). Reveal and verify: 120 / min per user. Optional global cap: `RATE_LIMIT_IP_MAX` requests to `/api/*` per IP and window (`RATE_LIMIT_IP_WINDOW_MS`). Headers `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; **429** also sends `Retry-After`.
+Register/login: 60 req / 10 min por IP (`RATE_LIMIT_AUTH_MAX`). Reveal y verify: 120 / min por usuario. Tope global opcional: `RATE_LIMIT_IP_MAX` requests a `/api/*` por IP y ventana (`RATE_LIMIT_IP_WINDOW_MS`). Headers `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; en 429 también `Retry-After`.
 
-**HTTP status summary**
+**Códigos HTTP (resumen)**
 
-| Code | Meaning |
-|------|---------|
-| 200 | Root, health, login, me, logout, generate, list, get, patch, versions, reveal, verify, rotate, delete, audit |
-| 201 | User or credential created |
-| 400 | Validation (email, account password, type, name, payload, expiresAt, maxReveals, verify on non-password) |
-| 401 | Missing/invalid/expired JWT, or bad login |
-| 404 | Foreign/missing credential or unknown route |
-| 409 | Email already registered |
-| 410 | Version expired or no reveals left |
-| 429 | Rate limit on register/login, reveal/verify, or per-IP `RATE_LIMIT_IP_MAX` |
+| Código | Significado |
+|--------|-------------|
+| 200 | Raíz, health, login, me, logout, generate, listar, get, patch, versions, reveal, verify, rotate, delete, audit |
+| 201 | Usuario o credencial creados |
+| 400 | Validación (email, password de cuenta, tipo, name, payload, expiresAt, maxReveals, verify sobre no-password) |
+| 401 | JWT ausente, inválido, expirado; o login con credenciales incorrectas |
+| 404 | Credencial ajena, inexistente, o ruta inexistente |
+| 409 | Email ya registrado |
+| 410 | Versión vencida o sin revelaciones restantes |
+| 429 | Rate limit en register/login, reveal/verify o `RATE_LIMIT_IP_MAX` por IP |
 
 </details>
 
-### 2.3) API endpoints [🔝](#index-)
+### 2.3) Endpoints de la API [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 <br>
 
@@ -464,18 +459,18 @@ http://localhost:3000
 https://bgvault.onrender.com
 ```
 
-Same paths. In Postman: `environment=local` or `environment=production`.
+Mismos paths. En Postman: `environment=local` o `environment=production`.
 
 ---
 
 #### 1. Health check
 
-Process liveness. No auth.
+Verifica que el proceso esté vivo. No requiere auth.
 
-**GET** `/` — API index (browser).  
-**GET** `/health` — liveness (local and Render).
+**GET** `/` — índice de la API (navegador).  
+**GET** `/health` — liveness (local y Render).
 
-**GET /** **200:** name, `health`, auth/vault routes and repo link. No `payload`.
+**GET /** **200:** nombre, `health`, rutas de auth/vault y link al repo. Sin `payload`.
 
 **GET** `/health`
 
@@ -493,9 +488,9 @@ Process liveness. No auth.
 
 ---
 
-#### 2. Register
+#### 2. Registrar usuario
 
-Creates the account, hashes the password with scrypt, returns a JWT. Email is normalized to lowercase.
+Crea la cuenta, hashea la contraseña con scrypt y devuelve un JWT. El email se normaliza a minúsculas.
 
 **POST** `/api/auth/register`  
 **Auth:** no  
@@ -509,10 +504,10 @@ Creates the account, hashes the password with scrypt, returns a JWT. Email is no
 }
 ```
 
-| Field | Required | Rule |
-|-------|----------|------|
-| `email` | yes | Basic format, max 254 characters |
-| `password` | yes | Between 8 and 128 characters |
+| Campo | Requerido | Regla |
+|-------|-----------|-------|
+| `email` | sí | Formato básico, máximo 254 caracteres |
+| `password` | sí | Entre 8 y 128 caracteres |
 
 **201:**
 ```json
@@ -530,31 +525,31 @@ Creates the account, hashes the password with scrypt, returns a JWT. Email is no
 }
 ```
 
-The response **never** includes `password` or `passwordHash`.
+La respuesta **nunca** incluye `password` ni `passwordHash`.
 
-**Errors:**
+**Errores:**
 
-| Status | When |
-|--------|------|
-| 400 | `VALIDATION` — missing email/password, invalid email, short password |
-| 409 | `EMAIL_TAKEN` — email already registered |
-| 429 | `RATE_LIMITED` — register/login cap per IP |
+| Status | Cuándo |
+|--------|--------|
+| 400 | `VALIDATION` — falta email/password, email inválido, password corto |
+| 409 | `EMAIL_TAKEN` — email ya registrado |
+| 429 | `RATE_LIMITED` — tope de register/login por IP |
 
 ---
 
-#### 3. Login
+#### 3. Iniciar sesión
 
 **POST** `/api/auth/login`  
 **Auth:** no  
 **Status:** `200`
 
-Same body as register. Identical response except `message`: `"Sesión iniciada"`.
+Mismo body que register. Respuesta idéntica salvo `message`: `"Sesión iniciada"`.
 
-**Errors:** `400` `VALIDATION` if fields are missing; `401` `INVALID_CREDENTIALS` if the email does not exist or the password does not match; `429` `RATE_LIMITED` if the per-IP cap is exceeded.
+**Errores:** `400` `VALIDATION` si faltan campos; `401` `INVALID_CREDENTIALS` si el email no existe o la contraseña no coincide; `429` `RATE_LIMITED` si se supera el tope por IP.
 
 ---
 
-#### 4. Profile (me)
+#### 4. Perfil (me)
 
 **GET** `/api/auth/me`  
 **Auth:** Bearer JWT
@@ -573,13 +568,13 @@ Same body as register. Identical response except `message`: `"Sesión iniciada"`
 
 ---
 
-#### 5. Logout
+#### 5. Cerrar sesión (logout)
 
-Invalidates the current JWT. Each token carries a `jti` (UUID); on logout it is stored in `revoked_tokens` until it expires. A new login issues **another** `jti`.
+Invalida el JWT actual. Cada token lleva un `jti` (UUID); al cerrar sesión se guarda en `revoked_tokens` hasta que expire. Un login nuevo emite **otro** `jti`.
 
 **POST** `/api/auth/logout`  
 **Auth:** Bearer JWT  
-Body: not required.
+Body: no hace falta.
 
 **200:**
 ```json
@@ -589,13 +584,13 @@ Body: not required.
 }
 ```
 
-Later uses of the same token: **401** `TOKEN_REVOKED`. A token without `jti` (legacy) or with a bad signature is still **401** `UNAUTHORIZED`.
+Usos posteriores del mismo token: **401** `TOKEN_REVOKED`. Un token sin `jti` (legado) o con firma inválida sigue siendo **401** `UNAUTHORIZED`.
 
 ---
 
-#### 6. Generate a secret
+#### 6. Generar secreto
 
-Builds a random value with `crypto.randomInt` (CSPRNG). **Does not persist it:** copy it into the `payload` of create/rotate if you want it stored.
+Arma un valor aleatorio con `crypto.randomInt` (CSPRNG). **No lo guarda**: copialo al `payload` de create/rotate si querés persistirlo.
 
 **POST** `/api/generate`  
 **Auth:** Bearer JWT
@@ -613,7 +608,7 @@ Builds a random value with `crypto.randomInt` (CSPRNG). **Does not persist it:**
 }
 ```
 
-Minimum body per kind (the rest uses defaults: password 20 with symbols; `api_key` 32 and `token` 48 **without** symbols):
+Body mínimo por kind (el resto usa defaults: password 20 con símbolos; `api_key` 32 y `token` 48 **sin** símbolos):
 
 ```json
 { "kind": "api_key" }
@@ -623,13 +618,13 @@ Minimum body per kind (the rest uses defaults: password 20 with symbols; `api_ke
 { "kind": "token" }
 ```
 
-| Field | Default | Notes |
+| Campo | Default | Notas |
 |-------|---------|-------|
-| `kind` | `password` | `password` \| `api_key` \| `token` (`note` N/A) |
-| `length` | 20 / 32 / 48 by kind | integer 12–128 |
+| `kind` | `password` | `password` \| `api_key` \| `token` (`note` no aplica) |
+| `length` | 20 / 32 / 48 según kind | entero 12–128 |
 | `uppercase` `lowercase` `digits` | `true` | — |
-| `symbols` | `true` on password, `false` on api_key/token | `!@#$%^&*_-+=?` |
-| `excludeAmbiguous` | `true` | omits `I`, `O`, `l`, `0`, `1` |
+| `symbols` | `true` en password, `false` en api_key/token | `!@#$%^&*_-+=?` |
+| `excludeAmbiguous` | `true` | omite `I`, `O`, `l`, `0`, `1` |
 
 **200:**
 ```json
@@ -649,16 +644,16 @@ Minimum body per kind (the rest uses defaults: password 20 with symbols; `api_ke
 }
 ```
 
-Guarantees at least one character from each active set. **400** if `kind` is invalid, `length` is out of range, or every set is `false`.
+Garantiza al menos un carácter de cada juego activo. **400** si `kind` es inválido, `length` sale de rango o todos los juegos están en `false`.
 
 ---
 
-#### 7. Create credential
+#### 7. Crear credencial
 
-Encrypts `payload` with **envelope encryption**: random DEK AES-256-GCM (AAD = `credential:<id>:<type>:<version>`) and wrap of that DEK with `ENCRYPTION_KEY` (AAD = `dek:<id>:<version>`). Stores the record as **version 1**.
+Cifra el `payload` con **envelope encryption**: DEK aleatoria AES-256-GCM (AAD = `credential:<id>:<type>:<version>`) y wrap de esa DEK con `ENCRYPTION_KEY` (AAD = `dek:<id>:<version>`). Guarda el registro como **versión 1**.
 
 **POST** `/api/credentials`  
-**Auth:** required  
+**Auth:** requerida  
 **Status:** `201`
 
 **Body (password):**
@@ -675,7 +670,7 @@ Encrypts `payload` with **envelope encryption**: random DEK AES-256-GCM (AAD = `
 }
 ```
 
-TTL / single use (optional, at **version** level, not inside `payload`):
+TTL / un solo uso (opcionales, a nivel **versión**, no dentro de `payload`):
 
 ```json
 {
@@ -690,30 +685,30 @@ TTL / single use (optional, at **version** level, not inside `payload`):
 }
 ```
 
-**Parameters:**
+**Parámetros:**
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `type` | yes | `password` \| `api_key` \| `token` \| `note` |
-| `name` | yes | Display name (cleartext metadata) |
-| `service` | no | Associated product/service |
-| `tags` | no | Array of strings |
-| `payload` | yes | Sensitive object (encrypted whole) |
-| `expiresAt` | no | Future ISO-8601; that **version** stops revealing when it expires |
-| `maxReveals` | no | Integer 1–10000; each reveal/verify consumes one use |
+| Campo | Requerido | Descripción |
+|-------|-----------|-------------|
+| `type` | sí | `password` \| `api_key` \| `token` \| `note` |
+| `name` | sí | Nombre visible (metadato en claro) |
+| `service` | no | Servicio o producto asociado |
+| `tags` | no | Array de strings |
+| `payload` | sí | Objeto sensible (se cifra entero) |
+| `expiresAt` | no | ISO-8601 futuro; esa **versión** deja de revelarse al vencer |
+| `maxReveals` | no | Entero 1–10000; cada reveal/verify consume un uso |
 
-Omitted: no expiry, unlimited reveals. `null` on rotate clears the inherited value.
+Omitidos: sin caducidad y revelaciones ilimitadas. `null` en rotate limpia el valor heredado.
 
-**`payload` by `type`:**
+**`payload` según `type`:**
 
-| type | Required field | Optional fields |
-|------|----------------|-----------------|
-| `password` | `payload.password` | `payload.username` (and free extras) |
-| `api_key` | `payload.key` | free extras |
-| `token` | `payload.token` | free extras (`payload.expiresAt`, etc.); **not** the **version** `expiresAt` |
-| `note` | `payload.text` | free extras |
+| type | Campo requerido | Campos opcionales |
+|------|-----------------|-------------------|
+| `password` | `payload.password` | `payload.username` (y extras libres) |
+| `api_key` | `payload.key` | extras libres |
+| `token` | `payload.token` | extras libres (`payload.expiresAt`, etc.); **no** es el `expiresAt` de la **versión** |
+| `note` | `payload.text` | extras libres |
 
-Extra keys are encrypted with the blob. Only the required fields in the table fail validation.
+Las claves extra se cifran enteras con el blob. Solo fallan las requeridas de la tabla.
 
 **201:**
 ```json
@@ -739,14 +734,14 @@ Extra keys are encrypted with the blob. Only the required fields in the table fa
 }
 ```
 
-The response **never** includes `payload` or ciphertext.
+La respuesta **nunca** incluye `payload` ni ciphertext.
 
-**Errors:**
+**Errores:**
 
-| Status | When |
-|--------|------|
-| 400 | Invalid `type`, missing `name`, incomplete `payload`, bad `tags`, past `expiresAt`, invalid `maxReveals` |
-| 401 | No JWT, invalid or expired token |
+| Status | Cuándo |
+|--------|--------|
+| 400 | `type` inválido, falta `name`, `payload` incompleto, `tags` mal formados, `expiresAt` pasado, `maxReveals` inválido |
+| 401 | Sin JWT, token inválido o expirado |
 
 ```json
 {
@@ -756,7 +751,7 @@ The response **never** includes `payload` or ciphertext.
 }
 ```
 
-Other create examples:
+Otros tipos de ejemplo para crear:
 
 ```json
 {
@@ -779,7 +774,7 @@ Other create examples:
 }
 ```
 
-`payload.expiresAt` is encrypted with the token. The TTL that triggers **410** is the top-level `expiresAt` (next to `name` / `maxReveals`).
+`payload.expiresAt` queda cifrado con el token. El TTL que dispara **410** es el `expiresAt` de primer nivel (junto a `name` / `maxReveals`).
 
 ```json
 {
@@ -791,24 +786,24 @@ Other create examples:
 
 ---
 
-#### 8. List credentials
+#### 8. Listar credenciales
 
-Metadata only. Filterable.
+Devuelve solo metadatos. Se puede filtrar.
 
 **GET** `/api/credentials`  
 **GET** `/api/credentials?type=password`  
 **GET** `/api/credentials?service=Gmail`  
 **GET** `/api/credentials?limit=50&offset=0`  
-**Auth:** required
+**Auth:** requerida
 
 **Query:**
 
-| Param | Description |
+| Param | Descripción |
 |-------|-------------|
-| `type` | Filter by type |
-| `service` | Filter by service (exact match) |
-| `limit` | Page size (1–200, default 50) |
-| `offset` | Starting record (default 0) |
+| `type` | Filtra por tipo |
+| `service` | Filtra por servicio (match exacto) |
+| `limit` | Tamaño de página (1–200, por defecto 50) |
+| `offset` | Desde qué registro (por defecto 0) |
 
 **200:**
 ```json
@@ -840,10 +835,10 @@ Metadata only. Filterable.
 
 ---
 
-#### 9. Get metadata by id
+#### 9. Obtener metadatos por id
 
 **GET** `/api/credentials/:id`  
-**Auth:** required
+**Auth:** requerida
 
 **200:**
 ```json
@@ -868,7 +863,7 @@ Metadata only. Filterable.
 }
 ```
 
-No `payload`, no ciphertext.
+No incluye `payload` ni ciphertext.
 
 **404:**
 ```json
@@ -881,14 +876,14 @@ No `payload`, no ciphertext.
 
 ---
 
-#### 10. Edit metadata (PATCH)
+#### 10. Editar metadatos (PATCH)
 
-Changes `name`, `service` or `tags` **without** rotating the payload or bumping the version. `type`, `expiresAt` and `maxReveals` are not edited here: type is immutable; lifecycle is inherited or changed on **rotate**.
+Cambia `name`, `service` o `tags` **sin** rotar el payload ni incrementar la versión. `type`, `expiresAt` y `maxReveals` no se editan acá: el tipo es inmutable y el ciclo de vida se hereda o se cambia en **rotate**.
 
 **PATCH** `/api/credentials/:id`  
-**Auth:** required
+**Auth:** requerida
 
-**Body** (at least one field):
+**Body** (al menos un campo):
 ```json
 {
   "name": "Gmail trabajo",
@@ -897,7 +892,7 @@ Changes `name`, `service` or `tags` **without** rotating the payload or bumping 
 }
 ```
 
-`service: null` (or `""`) clears the service. `tags: []` leaves the credential with no tags.
+`service: null` (o `""`) limpia el servicio. `tags: []` deja la credencial sin tags.
 
 **200:**
 ```json
@@ -923,25 +918,25 @@ Changes `name`, `service` or `tags` **without** rotating the payload or bumping 
 }
 ```
 
-The response **never** includes `payload` or ciphertext. Version does not change.
+La respuesta **nunca** incluye `payload` ni ciphertext. La versión no cambia.
 
-**Errors:**
+**Errores:**
 
-| Status | When |
-|--------|------|
-| 400 | `VALIDATION` — empty body, extra fields (`payload`, `type`, …), empty `name`, bad `tags` |
-| 401 | `UNAUTHORIZED` — no JWT |
-| 404 | `CREDENTIAL_NOT_FOUND` — missing id or another user’s |
+| Status | Cuándo |
+|--------|--------|
+| 400 | `VALIDATION` — body vacío, campos extra (`payload`, `type`, …), `name` vacío, `tags` mal formados |
+| 401 | `UNAUTHORIZED` — sin JWT |
+| 404 | `CREDENTIAL_NOT_FOUND` — id inexistente o de otro usuario |
 
 ---
 
-#### 11. Reveal (POST)
+#### 11. Revelar credencial (POST)
 
-Decrypts the payload and returns it. **POST** on purpose: the value does not land in query-string access logs.
+Desencripta el payload y lo devuelve. Es **POST** a propósito: el valor no queda en access logs de query string.
 
 **POST** `/api/credentials/:id/reveal`  
-**Auth:** required  
-Body: not required.
+**Auth:** requerida  
+Body: no hace falta.
 
 **200:**
 ```json
@@ -971,20 +966,20 @@ Body: not required.
 }
 ```
 
-**404** `CREDENTIAL_NOT_FOUND` if the id does not exist **or belongs to another user**. **401** `UNAUTHORIZED` without JWT.
+**404** `CREDENTIAL_NOT_FOUND` si el id no existe **o pertenece a otro usuario**. **401** `UNAUTHORIZED` sin JWT.
 
-**410** `CREDENTIAL_EXPIRED` if `expiresAt` already passed. **410** `REVEAL_LIMIT` if `maxReveals` is exhausted. In both cases there is **no** decrypt and no `payload`. **429** `RATE_LIMITED` if the reveal/verify cap is exceeded.
+**410** `CREDENTIAL_EXPIRED` si `expiresAt` ya pasó. **410** `REVEAL_LIMIT` si `maxReveals` se agotó. En ambos casos **no** se desencripta y no hay `payload`. **429** `RATE_LIMITED` si se supera el tope de reveal/verify.
 
-GET/list of a burned or expired version still returns metadata (`expired`, `revealsRemaining`).
+GET/list de una versión quemada o vencida siguen devolviendo metadatos (`expired`, `revealsRemaining`).
 
 ---
 
-#### 12. Verify a password
+#### 12. Verificar una contraseña
 
-Compares a candidate against the stored payload. **Only for `type=password`**.
+Compara un candidato contra el payload almacenado. **Solo aplica a `type=password`**.
 
 **POST** `/api/credentials/:id/verify`  
-**Auth:** required
+**Auth:** requerida
 
 **Body:**
 ```json
@@ -994,9 +989,9 @@ Compares a candidate against the stored payload. **Only for `type=password`**.
 }
 ```
 
-`username` is optional: if sent, it is verified too. Body is **top-level** (`password`, `username?`, `version?`), **not** nested in `payload`. Verify **consumes** a `maxReveals` use (it decrypts the payload).
+`username` es opcional: si lo mandás, también se verifica. El body va **en la raíz** (`password`, `username?`, `version?`), **no** anidado en `payload`. Verify **consume** un uso de `maxReveals` (desencripta el payload).
 
-**200 (valid):**
+**200 (válida):**
 ```json
 {
   "credential": {
@@ -1025,24 +1020,24 @@ Compares a candidate against the stored payload. **Only for `type=password`**.
 }
 ```
 
-**200 (invalid):** `isValid: false`, `message`: `"Valores inválidos"`.
+**200 (inválida):** `isValid: false`, `message`: `"Valores inválidos"`.
 
-**Errors:**
+**Errores:**
 
-| Status | When |
-|--------|------|
-| 400 | `VALIDATION` — record is not `password`, or body missing `password` |
-| 401 | `UNAUTHORIZED` — no JWT |
-| 404 | `CREDENTIAL_NOT_FOUND` — missing id or another user’s |
-| 410 | `CREDENTIAL_EXPIRED` / `REVEAL_LIMIT` — same rule as reveal |
-| 429 | `RATE_LIMITED` — reveal/verify cap |
+| Status | Cuándo |
+|--------|--------|
+| 400 | `VALIDATION` — el registro no es `password`, o falta `password` en el body |
+| 401 | `UNAUTHORIZED` — sin JWT |
+| 404 | `CREDENTIAL_NOT_FOUND` — id inexistente o de otro usuario |
+| 410 | `CREDENTIAL_EXPIRED` / `REVEAL_LIMIT` — misma regla que reveal |
+| 429 | `RATE_LIMITED` — tope de reveal/verify |
 
 ---
 
-#### 13. Delete credential
+#### 13. Eliminar credencial
 
 **DELETE** `/api/credentials/:id`  
-**Auth:** required
+**Auth:** requerida
 
 **200:**
 ```json
@@ -1053,18 +1048,18 @@ Compares a candidate against the stored payload. **Only for `type=password`**.
 }
 ```
 
-**404** if it did not exist.
+**404** si no existía.
 
 ---
 
-#### 14. Rotate (new version)
+#### 14. Rotar credencial (nueva versión)
 
-Encrypts a new payload, increments `currentVersion` and **keeps** previous versions. Type does not change. `expiresAt` and `maxReveals` of the new version are **inherited** from the current one unless you send them (or `null` for unlimited). `revealCount` of the new version starts at 0.
+Cifra un payload nuevo, incrementa `currentVersion` y **conserva** las versiones anteriores. El tipo no cambia. `expiresAt` y `maxReveals` de la versión nueva se **heredan** de la actual salvo que los mandes (o `null` para ilimitado). `revealCount` de la versión nueva arranca en 0.
 
 **POST** `/api/credentials/:id/rotate`  
-**Auth:** required
+**Auth:** requerida
 
-**Body:** `payload` must match the credential’s existing **`type`** (`password` → `payload.password`, `api_key` → `payload.key`, `token` → `payload.token`, `note` → `payload.text`).
+**Body:** el `payload` debe cumplir el **mismo `type`** que ya tiene la credencial (`password` → `payload.password`, `api_key` → `payload.key`, `token` → `payload.token`, `note` → `payload.text`).
 
 ```json
 {
@@ -1075,7 +1070,7 @@ Encrypts a new payload, increments `currentVersion` and **keeps** previous versi
 }
 ```
 
-Optional: new lifecycle for **this** version (omitted fields are inherited):
+Opcional: nuevo ciclo de vida de **esta** versión (si omitís los campos, se heredan):
 
 ```json
 {
@@ -1088,7 +1083,7 @@ Optional: new lifecycle for **this** version (omitted fields are inherited):
 }
 ```
 
-`expiresAt: null` or `maxReveals: null` clears the inherited value (no expiry / unlimited reveals).
+`expiresAt: null` o `maxReveals: null` limpia el valor heredado (sin caducidad / revelaciones ilimitadas).
 
 **200:**
 ```json
@@ -1114,16 +1109,16 @@ Optional: new lifecycle for **this** version (omitted fields are inherited):
 }
 ```
 
-**400** if `payload` does not match the type. **404** if the id does not exist.
+**400** si `payload` no cumple el tipo. **404** si el id no existe.
 
 ---
 
-#### 15. List versions
+#### 15. Listar versiones
 
-History **without** ciphertext or plaintext.
+Devuelve el historial **sin** ciphertext ni plaintext.
 
 **GET** `/api/credentials/:id/versions`  
-**Auth:** required
+**Auth:** requerida
 
 **200:**
 ```json
@@ -1158,9 +1153,9 @@ History **without** ciphertext or plaintext.
 
 ---
 
-#### 16. Reveal a specific version
+#### 16. Revelar una versión concreta
 
-Reveal uses the current version if you do not send `version`. The version number goes in the **body**, not the URL.
+El reveal usa la versión actual si no mandás `version`. El número de versión va en el **body**, no en la URL.
 
 **POST** `/api/credentials/:id/reveal`
 
@@ -1170,21 +1165,21 @@ Reveal uses the current version if you do not send `version`. The version number
 }
 ```
 
-**200:** `credential` (with `version` and `currentVersion`) plus `payload`.  
-**404** `VERSION_NOT_FOUND` if that number does not exist.
+**200:** `credential` (con `version` y `currentVersion`) más `payload`.  
+**404** `VERSION_NOT_FOUND` si ese número no existe.
 
-Verify also accepts optional `"version": 1` (defaults to current).
+Verify también acepta `"version": 1` opcional (por defecto, la actual).
 
 ---
 
-#### 17. Audit
+#### 17. Auditoría
 
-Lists register, login, logout, generate, create, get, patch, reveal, verify, rotate, delete and versions events **for the authenticated user**. **Never** stores plaintext, ciphertext or DEKs.
+Lista eventos de register, login, logout, generate, create, get, patch, reveal, verify, rotate, delete y versions **del usuario autenticado**. **Nunca** guarda plaintext, ciphertext ni DEKs.
 
 **GET** `/api/audit`  
 **GET** `/api/audit?action=rotate`  
 **GET** `/api/audit?credentialId=<uuid>&limit=50&offset=0`  
-**Auth:** required
+**Auth:** requerida
 
 **200:**
 ```json
@@ -1208,67 +1203,67 @@ Lists register, login, logout, generate, create, get, patch, reveal, verify, rot
 }
 ```
 
-Max `limit`: 200.
+`limit` máximo: 200.
 
 </details>
 
-### 2.4) Security, encryption and limits [🔝](#index-)
+### 2.4) Seguridad, cifrado y límites [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 <br>
 
-#### Encryption
+#### Encriptación
 
-| Piece | Detail |
-|-------|--------|
-| Payload | AES-256-GCM with a **random 32-byte DEK** (`dek:iv:tag:ciphertext`) |
-| DEK wrap | AES-256-GCM + PBKDF2 over `ENCRYPTION_KEY` (or `ENCRYPTION_KEY_NEXT` if set) |
-| Payload AAD | `credential:<id>:<type>:<version>` |
-| DEK AAD | `dek:<id>:<version>` |
-| Legacy | versions without `wrapped_dek` open with `lib.decrypt` directly |
-| Authentication | GCM tag (integrity + authenticity) |
-| Generator | `crypto.randomInt`, never `Math.random` |
+| Pieza | Detalle |
+|-------|---------|
+| Payload | AES-256-GCM con **DEK aleatoria** de 32 bytes (`dek:iv:tag:ciphertext`) |
+| Wrap de DEK | AES-256-GCM + PBKDF2 sobre `ENCRYPTION_KEY` (o `ENCRYPTION_KEY_NEXT` si está definida) |
+| AAD payload | `credential:<id>:<type>:<version>` |
+| AAD DEK | `dek:<id>:<version>` |
+| Legado | versiones sin `wrapped_dek` se abren con `lib.decrypt` directo |
+| Autenticación | Tag GCM (integridad + autenticidad) |
+| Generador | `crypto.randomInt`, sin `Math.random` |
 
-#### What does not leak
+#### Qué no se filtra
 
-- GET and list **do not** return ciphertext, `wrappedDek` or plaintext
-- Reveal/verify of an expired or burned version: **410** without `payload`
-- Reveal is POST: the secret is not in the URL
-- There is no `?decrypt=true`
-- `X-Powered-By` disabled; `X-Content-Type-Options: nosniff`; `X-Frame-Options: DENY`
-- JSON body capped at 32 KB
+- GET y list **no** devuelven ciphertext, `wrappedDek` ni plaintext
+- Reveal/verify de una versión vencida o quemada: **410** sin `payload`
+- Reveal es POST: la credencial no queda en la URL
+- No hay `?decrypt=true`
+- `X-Powered-By` deshabilitado; `X-Content-Type-Options: nosniff`; `X-Frame-Options: DENY`
+- Body JSON limitado a 32 KB
 
-#### Accounts and tokens
+#### Cuentas y tokens
 
-| Piece | Detail |
-|-------|--------|
-| User password | scrypt, N=16384, r=8, p=1, 16-byte salt |
-| JWT | HS256, UUID `jti`, independent `JWT_SECRET` |
-| Logout | `revoked_tokens` keeps `jti` until `exp` |
-| Comparison | `timingSafeEqual` on signature and hash |
-| Isolation | `credentials.user_id` and `audit_events.user_id` |
+| Pieza | Detalle |
+|-------|---------|
+| Contraseña de usuario | scrypt, N=16384, r=8, p=1, salt de 16 bytes |
+| JWT | HS256, `jti` UUID, `JWT_SECRET` independiente |
+| Logout | `revoked_tokens` guarda el `jti` hasta `exp` |
+| Comparación | `timingSafeEqual` en firma y en hash |
+| Aislamiento | `credentials.user_id` y `audit_events.user_id` |
 
-#### Rotating `ENCRYPTION_KEY`
+#### Rotación de `ENCRYPTION_KEY`
 
-The payload is never re-encrypted. Only the DEK wrap (`wrapped_dek`) is rewritten.
+El payload nunca se re-cifra. Solo se vuelve a envolver la DEK (`wrapped_dek`).
 
-1. Generate a new key (≥ 32 characters) and set `ENCRYPTION_KEY_NEXT` in `.env`
-2. Restart the server (it accepts both KEKs; new `seal`s already use NEXT)
-3. `npm run rewrap-keys` — rewrite `wrapped_dek` with the new key
-4. Copy `ENCRYPTION_KEY_NEXT` over `ENCRYPTION_KEY`, delete `NEXT`, restart
+1. Generá una clave nueva (≥ 32 caracteres) y definí `ENCRYPTION_KEY_NEXT` en `.env`
+2. Reiniciá el servidor (queda aceptando ambas KEK; los `seal` nuevos ya usan NEXT)
+3. `npm run rewrap-keys` — reescribe `wrapped_dek` con la clave nueva
+4. Copiá `ENCRYPTION_KEY_NEXT` sobre `ENCRYPTION_KEY`, borré `NEXT`, reiniciá
 
-Legacy versions (no `wrapped_dek`) are not rewrapped: rotate those credentials first so they move to envelope. `open` tries `ENCRYPTION_KEY` and, if set, `ENCRYPTION_KEY_NEXT`.
+Versiones legado (sin `wrapped_dek`) no se reenvuelven: rotá esas credenciales primero para pasarlas a envelope. `open` prueba `ENCRYPTION_KEY` y, si está, `ENCRYPTION_KEY_NEXT`.
 
-#### Reusing the encryption module
+#### Reutilizar el módulo de encriptación
 
-Encryption is isolated for copying into other Node services.
+La lógica de cifrado está aislada en un módulo independiente, pensado para copiarse a otros servicios Node.
 
-- **`src/crypto/lib.js`** — `encrypt(text, key, aad)` and `decrypt(blob, key, aad)` (the vault uses this to **wrap the DEK**)
-- **`src/crypto/envelope.js`** — payload `seal` / `open` (optional if you only need the simple cipher)
+- **`src/crypto/lib.js`** — `encrypt(text, key, aad)` y `decrypt(blob, key, aad)` (el vault lo usa para **envolver la DEK**)
+- **`src/crypto/envelope.js`** — `seal` / `open` del payload (opcional si copiás solo el cifrador simple)
 
-**No npm dependency.** Only `node:crypto`.
+**Ninguna dependency de npm.** Solo `node:crypto`.
 
 ```javascript
 const { encrypt, decrypt } = require('./src/crypto/lib');
@@ -1280,101 +1275,101 @@ const cifrado = encrypt('mi contraseña', clave, aad);
 const plano = decrypt(cifrado, clave, aad);
 ```
 
-- If you omit `key`, it uses `process.env.ENCRYPTION_KEY`.
-- `aad` is optional, but **the same value** must be used to encrypt and decrypt.
-- The vault binds AAD to `credential:<uuid>:<type>:<version>`.
+- Si no pasás `key`, usa `process.env.ENCRYPTION_KEY`.
+- `aad` es opcional, pero **el mismo valor** tiene que usarse al cifrar y al descifrar.
+- El vault ata AAD a `credential:<uuid>:<type>:<version>`.
 
 ```bash
 node src/crypto/crypto-cli.js "texto a cifrar"
 node src/crypto/crypto-cli.js --decrypt "salt:iv:tag:encrypted"
 ```
 
-Uses `ENCRYPTION_KEY` from the environment or the third argument.
+Usa `ENCRYPTION_KEY` del entorno o el tercer argumento.
 
-Module traits: AES-256-GCM auth tag; PBKDF2 100,000 iterations SHA-256, 32-byte output; 64-byte random salt per message; 12-byte random IV (NIST), `decrypt` still accepts legacy 16-byte IVs; optional AAD via `setAAD`; format `salt:iv:tag:encrypted` (all hex); **no default key**.
+Características del módulo: tag GCM; PBKDF2 100.000 iteraciones SHA-256, salida de 32 bytes; salt aleatorio de 64 bytes; IV de 12 bytes (NIST), `decrypt` acepta IV legado de 16 bytes; AAD opcional vía `setAAD`; formato `salt:iv:tag:encrypted` (todo hex); **sin clave default**.
 
-#### Recommendations
+#### Recomendaciones
 
-1. **Keys:** `ENCRYPTION_KEY` and `JWT_SECRET` ≥ 32 characters, **distinct**, never in source
-2. **`.env`:** stay out of git
-3. **HTTPS** on any network that is not loopback
-4. **Accounts:** do not reuse `demo@bgvault.local` outside development
-5. **Production:** rotate `JWT_SECRET` if leaked (invalidates all sessions); rotate `ENCRYPTION_KEY` with the `ENCRYPTION_KEY_NEXT` flow
+1. **Claves:** `ENCRYPTION_KEY` y `JWT_SECRET` ≥ 32 caracteres, **distintos**, nunca en el código
+2. **`.env`:** fuera de git
+3. **HTTPS** en cualquier red que no sea loopback
+4. **Cuentas:** no reutilices `demo@bgvault.local` fuera de desarrollo
+5. **Producción:** rotá `JWT_SECRET` si se filtra (invalida todas las sesiones); rotá `ENCRYPTION_KEY` con el flujo de `ENCRYPTION_KEY_NEXT`
 
-#### Product limits
+#### Limitaciones
 
-- **No refresh token:** the access token is revoked on logout (`jti`) or when `exp` passes. No refresh family or session rotation
-- **No roles/admin:** every user owns only their vault; no sharing. Re-wrap is an operator CLI, not a user endpoint
-- **Local SQLite:** one process, one file; not designed for a cluster
-- Aimed as a professional **dev vault** and a product base, not a production HSM
+- **Sin refresh token:** el access token se revoca con logout (`jti`) o al vencer `exp`. No hay familia de refresh ni rotación de sesión
+- **Sin roles/admin:** todos los usuarios son dueños de su vault; no hay sharing. El re-wrap es un CLI de operador, no un endpoint de usuario
+- **SQLite local:** un proceso, un archivo; no está pensado para un clúster
+- Pensado como vault profesional de desarrollo y base de un producto, no como HSM de producción
 
 </details>
 
 <br>
 
-## Section 3) Testing, hosted demo and references
+## Sección 3) Pruebas, demo alojada y referencias
 
-### 3.0) Functional test [🔝](#index-)
+### 3.0) Prueba funcional [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 <br>
 
-#### 3.0.1) Walkthrough video
+#### 3.0.1) Video del funcionamiento
 
-A functional-test walkthrough (Postman + hosted API) will live here when recorded. Until then, use the production URL under the title, this section, and the Postman collection.
+Acá va a vivir el video de pruebas funcionales (Postman + API alojada) cuando esté grabado. Por ahora usá la URL de production debajo del título, esta sección y la collection de Postman.
 
-#### 3.0.2) Automated tests
+#### 3.0.2) Tests automatizados
 
 ```bash
 npm test
 ```
 
-Native `node --test` (`test/api.test.js`): health, JWT/`jti`/logout, isolation, PATCH, paging, **410** `REVEAL_LIMIT`, per-IP rate limit. Boots the app in memory; no extra server.
+Tests nativos `node --test` (`test/api.test.js`): health, JWT/`jti`/logout, aislamiento, PATCH, paginación, **410** `REVEAL_LIMIT`, rate limit por IP. Levanta la app en memoria; no hace falta servidor extra.
 
-#### 3.0.3) Postman collection
+#### 3.0.3) Collection de Postman
 
-One file: `collections/bgvault.postman_collection.json`. Covers the contract with `pm.test` on each request (201/200 and 400/401/404/409/410/429): Health, Auth, Generate, Create, PATCH, isolation, Reveal, TTL, verify, rotation, audit, delete.
+Un archivo: `collections/bgvault.postman_collection.json`. Cubre el contrato con `pm.test` en cada request (201/200 y 400/401/404/409/410/429): Health, Auth, Generate, Create, PATCH, aislamiento, Reveal, TTL, verify, rotación, audit, delete.
 
-**Local vs production** lives **inside** the collection (no extra JSON). Variable `environment`:
+**Local vs production** está **dentro** de la collection (no hay JSON extra). Variable `environment`:
 
-| `environment` | Hits |
-|---------------|------|
+| `environment` | Pega a |
+|---------------|--------|
 | `local` (default) | `http://localhost:3000` (`baseUrlLocal`) |
 | `production` | `https://bgvault.onrender.com` (`baseUrlProduction`) |
 
-A collection **pre-request** copies that into `{{baseUrl}}`. Every request uses `{{baseUrl}}`. `accessToken` is also a collection variable.
+Un **pre-request** de la collection copia eso a `{{baseUrl}}`. Todas las requests usan `{{baseUrl}}`. El `accessToken` también vive en variables de la collection.
 
-1. Import the JSON (**Replace** if it already existed; `_postman_id` is fixed so you do not duplicate)
-2. Collection → **Variables** → `environment` = `local` or `production`
-3. Runner: **Environment: none** (a Postman environment with `baseUrl` would override the collection)
-4. **Run collection** in order. Auth registers/logs in `demo@bgvault.local` and stores `accessToken`
+1. Importá el JSON (**Replace** si ya existía; el `_postman_id` es fijo para no duplicar)
+2. Collection → **Variables** → `environment` = `local` o `production`
+3. Runner: **Environment: none** (un environment de Postman con `baseUrl` pisa el de la collection)
+4. **Run collection** en orden. Auth registra/loguea `demo@bgvault.local` y guarda `accessToken`
 
-Local: `npm run server` first. Production: the first hit can take ~1 min if Render was asleep (high timeout on Health). A full Runner against production can **429** (`RATE_LIMIT_IP_MAX=40`); the whole contract is meant to run on `local`.
+Local: `npm run server` antes. Production: primera pega puede tardar ~1 min si Render estaba dormido (timeout alto en Health). El Runner completo contra production puede **429** (`RATE_LIMIT_IP_MAX=40`); el contrato entero se corre en `local`.
 
-Health, register, login, 401, route 404 and invalid JSON use `noauth` where it applies. GET/list do not leak `payload` or ciphertext. PATCH does not rotate the secret. A second user gets **404**, not 403. TTL waits ~3 s.
+Health, register, login, 401, 404 de ruta y JSON inválido van con `noauth` cuando corresponde. GET/list no filtran `payload` ni ciphertext. PATCH no rota el secreto. Un segundo usuario recibe **404**, no 403. El TTL espera ~3 s.
 
-`npm run rewrap-keys` is not in Postman: it is an operator CLI.
+`npm run rewrap-keys` no está en Postman: es CLI de operador.
 
-#### 3.0.4) Case — curl (local or production)
+#### 3.0.4) Caso — curl (local o production)
 
-Same bodies and paths. In Postman you do not need to copy curl: import the collection and set `environment`.
+Los mismos bodies y paths. En Postman no hace falta copiar curl: Import de la collection y `environment`.
 
 ```bash
-# Local (after npm run server)
+# Local (después de npm run server)
 export BASE="http://localhost:3000"
 
-# Production — same API on Render (first hit may take ~1 min)
+# Production — misma API en Render (la primera pega puede tardar ~1 min)
 # export BASE="https://bgvault.onrender.com"
 
-# Index
+# Índice
 curl -s "$BASE/"
 
-# Health (X-Request-Id in header and body)
+# Salud (X-Request-Id en header y body)
 curl -si "$BASE/health" -H "X-Request-Id: demo-req-0001"
 
-# Register (or login if the email already exists)
+# Registrar (o login si el email ya existe)
 curl -s -X POST "$BASE/api/auth/register" \
   -H "Content-Type: application/json" \
   -d '{"email":"demo@bgvault.local","password":"bgvault-dev-password"}'
@@ -1386,16 +1381,16 @@ TOKEN=$(curl -s -X POST "$BASE/api/auth/login" \
 
 AUTH="Authorization: Bearer $TOKEN"
 
-# Profile
+# Perfil
 curl -s "$BASE/api/auth/me" -H "$AUTH"
 
-# Generate password
+# Generar password
 curl -s -X POST "$BASE/api/generate" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
   -d '{"kind":"password","length":24}'
 
-# Create password — copy `credential.id` from the response for PATCH/reveal/verify/rotate
+# Crear password — copiá el `credential.id` de la respuesta para PATCH/reveal/verify/rotate
 curl -s -X POST "$BASE/api/credentials" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
@@ -1407,7 +1402,7 @@ curl -s -X POST "$BASE/api/credentials" \
     "payload": { "password": "miContraseña123", "username": "usuario@example.com" }
   }'
 
-# Create API key (`payload.key`)
+# Crear API key (`payload.key`)
 curl -s -X POST "$BASE/api/credentials" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
@@ -1418,7 +1413,7 @@ curl -s -X POST "$BASE/api/credentials" \
     "payload": { "key": "sk_live_demo_not_a_real_key" }
   }'
 
-# Create token (`payload.token`; extras live in the blob, they are not the version TTL)
+# Crear token (`payload.token`; extras van en el blob, no son el TTL de la versión)
 curl -s -X POST "$BASE/api/credentials" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
@@ -1429,23 +1424,23 @@ curl -s -X POST "$BASE/api/credentials" \
     "payload": { "token": "ghp_demoReplaceMeNotARealPat", "expiresAt": "2028-01-01T00:00:00.000Z" }
   }'
 
-# List (no plaintext)
+# Listar (sin plaintext)
 curl -s "$BASE/api/credentials?limit=50&offset=0" -H "$AUTH"
 
-# Filter
+# Filtrar
 curl -s "$BASE/api/credentials?type=password" -H "$AUTH"
 
-# Edit metadata (does not touch payload). Replace <id> with the password UUID
+# Editar metadatos (no toca el payload). Reemplazá <id> por el UUID de la password
 curl -s -X PATCH "$BASE/api/credentials/<id>" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
   -d '{"name":"Gmail trabajo","tags":["email","trabajo"]}'
 
-# Reveal (replace the id; empty body = current version)
+# Revelar (reemplazá el id; body vacío = versión actual)
 curl -s -X POST "$BASE/api/credentials/<id>/reveal" \
   -H "$AUTH"
 
-# One-time / TTL (version level, not inside payload)
+# One-time / TTL (a nivel versión, no dentro de payload)
 curl -s -X POST "$BASE/api/credentials" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
@@ -1457,111 +1452,111 @@ curl -s -X POST "$BASE/api/credentials" \
     "payload": { "password": "once" }
   }'
 
-# Verify password — only `type=password`; flat body (do not nest in payload)
+# Verificar password — solo `type=password`; body plano (no anidar en payload)
 curl -s -X POST "$BASE/api/credentials/<id>/verify" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
   -d '{ "password": "miContraseña123", "username": "usuario@example.com" }'
 
-# Rotate — payload must match that credential’s type
+# Rotar — el payload tiene que coincidir con el type de esa credencial
 curl -s -X POST "$BASE/api/credentials/<id>/rotate" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
   -d '{ "payload": { "password": "nuevaContraseña456!", "username": "usuario@example.com" } }'
 
-# Versions
+# Versiones
 curl -s "$BASE/api/credentials/<id>/versions" -H "$AUTH"
 
-# Reveal historical version
+# Revelar versión histórica
 curl -s -X POST "$BASE/api/credentials/<id>/reveal" \
   -H "Content-Type: application/json" \
   -H "$AUTH" \
   -d '{ "version": 1 }'
 
-# Audit
+# Auditoría
 curl -s "$BASE/api/audit?action=rotate" -H "$AUTH"
 
-# Delete
+# Eliminar
 curl -s -X DELETE "$BASE/api/credentials/<id>" \
   -H "$AUTH"
 
-# Logout (the same TOKEN stops working; you need a new login)
+# Cerrar sesión (el mismo TOKEN deja de servir; hace falta un login nuevo)
 curl -s -X POST "$BASE/api/auth/logout" -H "$AUTH"
 ```
 
-#### 3.0.5) Case — npm scripts (local)
+#### 3.0.5) Caso — scripts npm (local)
 
 ```bash
 npm run setup-env
-npm run server          # other terminal
-npm run client:post     # creates a demo password credential
-npm run client:get      # lists metadata
-npm run rewrap-keys     # only with ENCRYPTION_KEY_NEXT set
-npm run decrypt-env     # only if *_ENCRYPTED exists in .env
-npm test                # auth, logout, isolation, PATCH, 410
+npm run server          # en otra terminal
+npm run client:post     # crea una credencial password de demo
+npm run client:get      # lista metadatos
+npm run rewrap-keys     # solo con ENCRYPTION_KEY_NEXT definida
+npm run decrypt-env     # solo si hay *_ENCRYPTED en .env
+npm test                # auth, logout, aislamiento, PATCH, 410
 ```
 
 </details>
 
-### 3.1) Hosted sandbox (Render) [🔝](#index-)
+### 3.1) Sandbox alojado (Render) [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 <br>
 
-Public demo: **[https://bgvault.onrender.com](https://bgvault.onrender.com)**
+Demo pública: **[https://bgvault.onrender.com](https://bgvault.onrender.com)**
 
-The Render service **is this vault** (Express + SQLite + JWT), not a separate dashboard. Free instance: HTTPS, per-IP rate limit, same encryption as on your machine.
+El servicio en Render **es este vault** (Express + SQLite + JWT), no un panel aparte. Instancia Free: HTTPS, rate limit por IP, cifrado igual que en tu máquina.
 
-Hosted env and rate caps live in `render.yaml` (Blueprint). Local values live in `.env`.
+El env y los topes de production van en `render.yaml` (Blueprint). Los valores locales van en `.env`.
 
-| This does | This does not (Free) |
-|-----------|----------------------|
-| Same API: register, JWT, create/reveal/rotate, generate, audit | Persistent disk: SQLite is under `/tmp` |
-| Public `GET /` and `GET /health` | **Yesterday’s** data: after sleep (~15 min idle) or a redeploy, the DB starts **empty** |
-| Per-user isolation **while** the container is awake | SSH, jobs, `rewrap-keys` on the server |
-| Per-IP cap (`RATE_LIMIT_IP_MAX`, **429** `RATE_LIMITED`) | Instant start: first hit can take ~30–60 s |
-| One person’s register/login does not see another’s vault | 24/7 without sleep (Free spins down when idle) |
+| Esto sí | Esto no (Free) |
+|---------|----------------|
+| Misma API: register, JWT, create/reveal/rotate, generate, audit | Disco persistente: la SQLite está en `/tmp` |
+| `GET /` y `GET /health` públicos | Los datos de **ayer**: al dormir (~15 min sin tráfico) o al redeploy, la base arranca **vacía** |
+| Aislamiento por usuario **mientras** el contenedor está despierto | SSH, jobs, `rewrap-keys` en el server |
+| Tope por IP (`RATE_LIMIT_IP_MAX`, **429** `RATE_LIMITED`) | Arranque instantáneo: la primera pega puede tardar ~30–60 s |
+| Un register/login por persona no ve el vault de otra | 24/7 sin sleep (Free se apaga con inactividad) |
 
-Closing Postman **does not** wipe the database. Sleep or a redeploy does. It is a sandbox to try the contract, not a production vault with history.
+Cerrar Postman **no** borra la base. La borra el sleep o un redeploy. Es un sandbox para probar el contrato, no un vault de producción con historia.
 
-If an IP exceeds the cap: **429** `RATE_LIMITED` (`Demasiadas solicitudes para esta IP`). Other IPs keep working.
+Si una IP se pasa del tope: **429** `RATE_LIMITED` (`Demasiadas solicitudes para esta IP`). Las demás IPs siguen.
 
-`.nvmrc` / `NODE_VERSION` = `22.13.0`. Health check path: `/health`.
+`.nvmrc` / `NODE_VERSION` = `22.13.0`. Health check: `/health`.
 
 </details>
 
-### 3.2) Contributing [🔝](#index-)
+### 3.2) Contribuir [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 <br>
 
-1. Fork the project.
-2. Create a branch (`git checkout -b feature/my-improvement`).
-3. Commit (`git commit -m 'feat: short description'`).
-4. Push (`git push origin feature/my-improvement`).
-5. Open a Pull Request.
+1. Fork del proyecto.
+2. Creá una rama (`git checkout -b feature/mi-mejora`).
+3. Commit (`git commit -m 'feat: descripción corta'`).
+4. Push (`git push origin feature/mi-mejora`).
+5. Abrí un Pull Request.
 
-Keep secrets out of git (`.env`, keys). Document new env vars in `.env.example` and both READMEs (English + [Spanish](./doc/assets/translation/README.es.md)).
+No subas secretos a git (`.env`, claves). Documentá variables nuevas en `.env.example` y en ambos README (inglés + este).
 
 </details>
 
-### 3.3) License [🔝](#index-)
+### 3.3) Licencia [🔝](#índice-)
 
 <details>
-  <summary>View details</summary>
+  <summary>Ver detalle</summary>
 
 <br>
 
-ISC. Developed by [Andrés Weitzel](https://github.com/andresWeitzel).
+ISC. Desarrollado por [Andrés Weitzel](https://github.com/andresWeitzel).
 
-**Related links:**
+**Links:**
 
-* **Repository:** [github.com/andresWeitzel/Crypto-AES-256-GCM](https://github.com/andresWeitzel/Crypto-AES-256-GCM)
-* **API (production):** [bgvault.onrender.com](https://bgvault.onrender.com)
-* **Spanish README:** [doc/assets/translation/README.es.md](./doc/assets/translation/README.es.md)
+* **Repositorio:** [github.com/andresWeitzel/Crypto-AES-256-GCM](https://github.com/andresWeitzel/Crypto-AES-256-GCM)
+* **API (producción):** [bgvault.onrender.com](https://bgvault.onrender.com)
+* **README en inglés:** [doc/assets/translation/README.en.md](./doc/assets/translation/README.en.md)
 
 </details>
